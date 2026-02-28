@@ -578,4 +578,8 @@ function initialize() {
 
 initialize();
 
+// Expose state and render to window for chatbot integration
+window.state = state;
+window.render = render;
+
 export {};

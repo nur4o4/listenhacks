@@ -157,7 +157,7 @@ Your approach:
 - Listen actively and show understanding
 - Gently guide them to express emotions and stories
 - Ask follow-up questions to dig deeper
-- Keep responses concise but meaningful (2-3 sentences max)
+- Keep responses SHORT - around 50 words maximum (this is spoken aloud)
 
 When the user says they're ready (like "I'm ready" or "let's do it"), the system will automatically generate their song.
 
@@ -187,6 +187,54 @@ Focus on the emotional journey and creative expression. Make them feel heard.`;
     console.error('[chat] Error:', error);
     res.status(500).json({ 
       error: 'Failed to get AI response',
+      details: error.message 
+    });
+  }
+});
+
+// Text-to-Speech endpoint using ElevenLabs
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    console.log('[tts] Converting text to speech:', text.substring(0, 50) + '...');
+
+    // Call ElevenLabs TTS API
+    const voiceId = 'EXAVITQu4vr4xnSDxMaL'; // Sarah - warm, friendly voice
+    const ttsResponse = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        text: text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      },
+      {
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': process.env.ELEVEN_LABS_API_KEY
+        },
+        responseType: 'arraybuffer'
+      }
+    );
+
+    console.log('[tts] Audio generated successfully');
+
+    // Send audio back as response
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(Buffer.from(ttsResponse.data));
+
+  } catch (error) {
+    console.error('[tts] Error:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to generate speech',
       details: error.message 
     });
   }

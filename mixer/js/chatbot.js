@@ -10,6 +10,8 @@ class ChatbotController {
     this.conversation = [];
     this.isListening = false;
     this.recognition = null;
+    this.audioContext = null;
+    this.currentAudio = null;
     
     this.voiceBtn = document.getElementById('voiceBtn');
     this.chatMessages = document.getElementById('chatMessages');
@@ -17,6 +19,7 @@ class ChatbotController {
     this.generatedSong = document.getElementById('generatedSong');
     this.songAudio = document.getElementById('songAudio');
     this.downloadBtn = document.getElementById('downloadBtn');
+    this.addToTimelineBtn = document.getElementById('addToTimelineBtn');
     
     this.init();
   }
@@ -44,6 +47,9 @@ class ChatbotController {
     
     // Download button
     this.downloadBtn.addEventListener('click', () => this.downloadSong());
+    
+    // Add to timeline button
+    this.addToTimelineBtn.addEventListener('click', () => this.addSongToTimeline());
     
     console.log('🎤 Chatbot initialized with Web Speech API');
   }
@@ -174,12 +180,58 @@ class ChatbotController {
       this.addMessage(aiMessage, 'assistant');
       this.conversation.push({ role: 'assistant', content: aiMessage });
       
+      // Generate and play speech
+      await this.speakText(aiMessage);
+      
       this.updateStatus('Ready');
       
     } catch (error) {
       console.error('Error getting AI response:', error);
       this.updateStatus('⚠️ Error: ' + error.message);
       setTimeout(() => this.updateStatus('Ready'), 3000);
+    }
+  }
+
+  async speakText(text) {
+    try {
+      this.updateStatus('🔊 Speaking...', true);
+      
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        this.currentAudio.pause();
+        this.currentAudio = null;
+      }
+      
+      // Call TTS endpoint
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text })
+      });
+      
+      if (!response.ok) {
+        console.error('TTS error:', response.status);
+        return; // Fail silently for TTS, don't block the conversation
+      }
+      
+      // Get audio blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Create and play audio
+      this.currentAudio = new Audio(audioUrl);
+      this.currentAudio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        this.currentAudio = null;
+      };
+      
+      await this.currentAudio.play();
+      
+    } catch (error) {
+      console.error('Error speaking text:', error);
+      // Fail silently for TTS errors
     }
   }
 
@@ -236,6 +288,66 @@ class ChatbotController {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    }
+  }
+
+  async addSongToTimeline() {
+    if (!this.songAudio.src) {
+      this.updateStatus('⚠️ No song to add');
+      return;
+    }
+
+    // Check if main app state is available
+    if (!window.state || !window.state.audio || !window.state.audio.context) {
+      this.updateStatus('⚠️ Timeline not ready');
+      return;
+    }
+
+    try {
+      this.updateStatus('📥 Adding to timeline...', true);
+      
+      // Fetch the audio file
+      const response = await fetch(this.songAudio.src);
+      const arrayBuffer = await response.arrayBuffer();
+      
+      // Decode audio data
+      const audioBuffer = await window.state.audio.context.decodeAudioData(arrayBuffer);
+      
+      // Create a new clip
+      const clipNumber = window.state.nextClipIndex || 1;
+      const clip = {
+        id: `ai-song-${Date.now()}`,
+        trackId: 'AI Song',
+        startTimeSec: 0,
+        endTimeSec: audioBuffer.duration,
+        duration: audioBuffer.duration,
+        label: `AI Song ${clipNumber}`,
+        status: 'ready',
+        blob: await response.blob(),
+        buffer: audioBuffer,
+        lockTrack: false,
+        maxDurationSec: null,
+      };
+      
+      // Add to clips array
+      window.state.clips.push(clip);
+      window.state.nextClipIndex = (window.state.nextClipIndex || 1) + 1;
+      window.state.selectedClipId = clip.id;
+      
+      // Trigger render if available
+      if (window.render) {
+        window.render();
+      }
+      
+      this.updateStatus('✅ Added to timeline!');
+      this.addMessage('Song added to timeline! You can now edit and mix it with your other tracks.', 'assistant');
+      
+      setTimeout(() => this.updateStatus('Ready'), 3000);
+      
+    } catch (error) {
+      console.error('Error adding song to timeline:', error);
+      this.updateStatus('⚠️ Error: ' + error.message);
+      setTimeout(() => this.updateStatus('Ready'), 3000);
     }
   }
 
