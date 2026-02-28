@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ListenHacks Browser Audio DAW</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>ListenHacks Browser Audio DAW</h1>
+      <p>
+        Web Audio demo for mic monitoring, recording, playback, looping, and a multitrack timeline.
+      </p>
+      <p class="message" id="statusMessage"></p>
+
+      <section class="panel">
+        <h2>Input & Monitoring</h2>
+        <div class="row">
+          <button id="enableMicBtn">Enable Mic</button>
+          <label>
+            <input type="checkbox" id="monitorToggle" disabled />
+            Monitor Input (disabled in demo)
+          </label>
+        </div>
+        <div class="meter"><div id="levelFill" class="meter-fill"></div></div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <h2>Transport</h2>
+          <div class="row">
+            <button id="startRecordBtn">Start Recording</button>
+            <button id="endRecordBtn" class="warn">End Recording</button>
+          </div>
+          <div class="row">
+            <button id="playbackBtn" class="secondary">Playback</button>
+            <button id="startLoopBtn" class="secondary">Start Loop</button>
+            <button id="endLoopBtn" class="bad">End Loop</button>
+          </div>
+          <div class="status">
+            <span>Recording: <strong id="recordingState" class="value">No</strong></span>
+            <span>Looping: <strong id="loopState" class="value">No</strong></span>
+            <span>Playback: <strong id="playbackState" class="value">Stopped</strong></span>
+            <span>
+              Current selected clip length: <strong id="loopLength" class="value">0.00 s</strong>
+            </span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Effects</h2>
+          <div class="effects">
+            <div class="control">
+              <label><input type="checkbox" id="reverbEnabled" /> <span>Reverb</span></label>
+              <span>Decay <span id="reverbDecayValue" class="value">2.2</span>s</span>
+              <input
+                id="reverbDecay"
+                type="range"
+                min="0.2"
+                max="6"
+                step="0.1"
+                value="2.2"
+              />
+            </div>
+            <div class="control">
+              <label><input type="checkbox" id="delayEnabled" /> <span>Echo / Delay</span></label>
+              <span
+                >Delay <span id="delayTimeValue" class="value">0.22</span>s · Feedback
+                <span id="delayFeedbackValue" class="value">35</span>% · Wet
+                <span id="delayWetValue" class="value">40</span>%</span
+              >
+              <label><input type="checkbox" id="delayAdvanced" /> safe feedback clamp enabled</label>
+              <span>Delay Time</span>
+              <input id="delayTime" type="range" min="0.05" max="1.2" step="0.01" value="0.22" />
+              <span>Feedback</span>
+              <input id="delayFeedback" type="range" min="0" max="100" step="1" value="35" />
+              <span>Wet</span>
+              <input id="delayWet" type="range" min="0" max="100" step="1" value="40" />
+            </div>
+            <div class="control">
+              <label><input type="checkbox" id="autotuneEnabled" /> <span>autotune</span></label>
+              <span>Semitone Shift <span id="autotuneValue" class="value">0</span></span>
+              <input id="autotuneSemitones" type="range" min="-12" max="12" step="1" value="0" />
+              <small class="value">Fallback: quantized pitch-shift-style playback shift</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Timeline</h2>
+        <div class="status">
+          <span>
+            Four fixed tracks with clip blocks. Click a clip to select it.
+          </span>
+        </div>
+        <div class="timeline-header">
+          <div class="timeline-scale">
+            <span>Timeline scale <span id="timelineScaleValue" class="value">80</span> px/s</span>
+            <input id="timelineScale" type="range" min="30" max="180" step="1" value="80" />
+          </div>
+        </div>
+        <div class="timeline-shell">
+          <div id="timelineAxis" class="time-axis">
+            <div class="time-axis-spacer"></div>
+            <div id="timelineAxisLane" class="time-axis-lane"></div>
+          </div>
+          <div id="timelineViewport" class="timeline-viewport">
+            <div id="timelinePlayheadLayer" class="timeline-playhead-layer">
+              <div id="timelinePlayhead" class="playhead"></div>
+            </div>
+            <div id="timelineTracks" class="timeline-tracks"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>State & Action Log</h2>
+        <div class="status">
+          <span>
+            mic active: <span id="micState" class="value">No</span> · selected clip:
+            <span id="selectedSnippet" class="value">none</span>
+          </span>
+          <span>Active track: <strong id="activeTrackState" class="value">Track 1</strong></span>
+          <span
+            >Effects: reverb <span id="reverbState" class="value">off</span>, delay
+            <span id="delayState" class="value">off</span>, autotune
+            <span id="autotuneState" class="value">off</span></span
+          >
+          <span>Remote: <strong id="remoteStatus" class="value remote-status remote-offline">disconnected</strong></span>
+        </div>
+        <pre id="eventLog" class="log"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
