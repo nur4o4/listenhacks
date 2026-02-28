@@ -271,11 +271,16 @@ class ChatbotController {
       this.generatedSong.style.display = 'block';
       this.generatedSong.scrollIntoView({ behavior: 'smooth' });
       
-      this.addMessage('Your song is ready! 🎉 Check it out above!', 'assistant');
+      this.addMessage('Your song is ready! 🎉 Adding to timeline...', 'assistant');
       this.updateStatus('✨ Song created!');
       
       // Store file path for download
       this.currentSongPath = data.filePath;
+      
+      // Automatically add to timeline
+      setTimeout(() => {
+        this.addSongToTimeline();
+      }, 500);
       
     } catch (error) {
       console.error('Error generating song:', error);
@@ -320,17 +325,32 @@ class ChatbotController {
       // Decode audio data
       const audioBuffer = await window.state.audio.context.decodeAudioData(arrayBuffer);
       
+      // Create blob from arrayBuffer
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      
+      // Find or create a track for the AI song
+      let targetTrackId = window.state.tracks[0]?.id || 'track-1';
+      
+      // Try to find an empty track
+      for (const track of window.state.tracks) {
+        const hasClips = window.state.clips.some((clip) => clip.trackId === track.id);
+        if (!hasClips) {
+          targetTrackId = track.id;
+          break;
+        }
+      }
+      
       // Create a new clip
       const clipNumber = window.state.nextClipIndex || 1;
       const clip = {
         id: `ai-song-${Date.now()}`,
-        trackId: 'AI Song',
+        trackId: targetTrackId,
         startTimeSec: 0,
         endTimeSec: audioBuffer.duration,
         duration: audioBuffer.duration,
         label: `AI Song ${clipNumber}`,
         status: 'ready',
-        blob: await response.blob(),
+        blob: blob,
         buffer: audioBuffer,
         lockTrack: false,
         maxDurationSec: null,
@@ -347,7 +367,7 @@ class ChatbotController {
       }
       
       this.updateStatus('✅ Added to timeline!');
-      this.addMessage('Song added to timeline! You can now edit and mix it with your other tracks.', 'assistant');
+      this.addMessage('Song added to timeline! You can click the clip and press Delete to remove it if you don\'t like it.', 'assistant');
       
       setTimeout(() => this.updateStatus('Ready'), 3000);
       

@@ -167,6 +167,33 @@ function wireEffects() {
 }
 
 function wireControls() {
+  // Keyboard shortcuts for clip deletion
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Only delete if not typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if (state.selectedClipId) {
+        e.preventDefault();
+        const clipIndex = state.clips.findIndex(c => c.id === state.selectedClipId);
+        if (clipIndex !== -1) {
+          const clip = state.clips[clipIndex];
+          state.clips.splice(clipIndex, 1);
+          state.selectedClipId = null;
+          setStatusMessage(`Deleted ${clip.label}`);
+          logAction(state, {
+            source: 'ui',
+            type: 'DELETE_CLIP',
+            id: clip.id,
+          });
+          render();
+        }
+      }
+    }
+  });
+
   dom.enableMicBtn.addEventListener('click', () => {
     runAction({
       type: ACTION_TYPES.ENABLE_MIC,
