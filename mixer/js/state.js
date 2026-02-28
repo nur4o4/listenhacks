@@ -10,6 +10,9 @@ export const state = {
   recordingChunks: [],
   mediaRecorder: null,
   mediaStream: null,
+  handTrackingEnabled: false,
+  handTrackingStream: null,
+  handGestureLabel: 'none',
   pendingStatusMessage: null,
 
   isPlaybackPlaying: false,

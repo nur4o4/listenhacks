@@ -26,6 +26,19 @@
         <div class="meter"><div id="levelFill" class="meter-fill"></div></div>
       </section>
 
+      <section class="panel">
+        <h2>Hand Tracking Video</h2>
+        <div class="row">
+          <button id="toggleHandTrackingBtn" class="secondary">Start Hand Video</button>
+          <span>Status: <strong id="handTrackingState" class="value">Off</strong></span>
+          <span>Gesture: <strong id="handGestureState" class="value">none</strong></span>
+        </div>
+        <div class="hand-video-wrap">
+          <video id="handTrackingVideo" class="hand-video" autoplay muted playsinline></video>
+          <canvas id="handTrackingCanvas" class="hand-video-canvas"></canvas>
+        </div>
+      </section>
+
       <section class="grid">
         <div class="panel">
           <h2>Transport</h2>
@@ -118,6 +131,9 @@
       <span id="remoteStatus" class="remote-status remote-offline" hidden>disconnected</span>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
     <script type="module" src="js/main.js"></script>
   </body>

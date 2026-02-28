@@ -130,6 +130,30 @@ label {
   transition: width 0.07s ease;
 }
 
+.hand-video-wrap {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2a3280;
+  background: #0f1430;
+}
+
+.hand-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.hand-video-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .status {
   display: grid;
   gap: 6px;
