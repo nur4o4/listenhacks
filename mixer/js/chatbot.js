@@ -179,11 +179,13 @@ class ChatbotController {
       }
       
       const aiMessage = data.message;
-      this.addMessage(aiMessage, 'assistant');
       this.conversation.push({ role: 'assistant', content: aiMessage });
       
-      // Generate and play speech
+      // Generate speech first
       await this.speakText(aiMessage);
+      
+      // Then show message after audio is ready
+      this.addMessage(aiMessage, 'assistant');
       
       this.updateStatus('Ready');
       
