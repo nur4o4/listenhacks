@@ -1,3 +1,6 @@
+import json
+import sys
+
 import librosa
 import numpy as np
 
@@ -14,17 +17,28 @@ def track_bpm(audio_path: str):
     # Convert beat frames to timestamps (seconds)
     beat_times = librosa.frames_to_time(beat_frames, sr=sr).tolist()
 
-    print(f"File:     {audio_path}")
-    print(f"Duration: {duration:.2f}s")
-    print(f"BPM:      {bpm:.1f}")
-    print(f"Beats:    {len(beat_times)}")
-    print()
-    print("Beat markers (seconds):")
-    for i, t in enumerate(beat_times, 1):
-        print(f"  {i:4d}  {t:8.3f}s")
-
     return bpm, beat_times
 
 
 if __name__ == "__main__":
-    bpm, markers = track_bpm("Taylor Swift - Welcome To New York Lyrics.mp3")
+    if len(sys.argv) < 2:
+        print("Usage: python bpm_tracker.py <audio_path> [--json]", file=sys.stderr)
+        sys.exit(1)
+
+    audio_path = sys.argv[1]
+    use_json = "--json" in sys.argv
+
+    bpm, markers = track_bpm(audio_path)
+
+    if use_json:
+        print(json.dumps({"bpm": bpm, "beatTimes": markers}))
+    else:
+        print(f"File:     {audio_path}")
+        duration = librosa.get_duration(filename=audio_path)
+        print(f"Duration: {duration:.2f}s")
+        print(f"BPM:      {bpm:.1f}")
+        print(f"Beats:    {len(markers)}")
+        print()
+        print("Beat markers (seconds):")
+        for i, t in enumerate(markers, 1):
+            print(f"  {i:4d}  {t:8.3f}s")

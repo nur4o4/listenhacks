@@ -2,7 +2,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import express from 'express';
+import multer from 'multer';
 import { WebSocketServer } from 'ws';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
@@ -17,12 +21,15 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const PORT = Number(process.env.PORT || 3000);
 const FRONTEND_SOURCE_DIR = path.join(__dirname, '..');
+const BPM_TRACKER_SCRIPT = path.join(__dirname, '..', '..', 'bpm_tracker.py');
 const MAX_ACTIONS = 200;
 const MUSIC_GENERATOR_API = 'http://localhost:5001';
 const AUDIO_OUTPUT_DIR = path.join(__dirname, '../audio_files');
 
 // Initialize Gemini AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const upload = multer({ dest: os.tmpdir() });
 
 const ACTION_ALLOWLIST = new Set([
   'ENABLE_MIC',
@@ -94,6 +101,32 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/actions/recent', (req, res) => {
   res.json(recentActions);
+});
+
+app.post('/api/analyze-bpm', upload.single('audio'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ ok: false, error: 'No audio file provided' });
+  }
+
+  const tmpPath = req.file.path;
+
+  execFile('python3', [BPM_TRACKER_SCRIPT, tmpPath, '--json'], { timeout: 120000 }, (err, stdout, stderr) => {
+    fs.unlink(tmpPath, () => {});
+
+    if (err) {
+      console.error('[bpm] analysis failed', stderr || err.message);
+      return res.status(500).json({ ok: false, error: 'BPM analysis failed' });
+    }
+
+    try {
+      const result = JSON.parse(stdout.trim());
+      console.log(`[bpm] analyzed: ${result.bpm.toFixed(1)} BPM, ${result.beatTimes.length} beats`);
+      return res.json({ ok: true, bpm: result.bpm, beatTimes: result.beatTimes });
+    } catch (parseErr) {
+      console.error('[bpm] parse error', parseErr.message, stdout);
+      return res.status(500).json({ ok: false, error: 'Could not parse BPM result' });
+    }
+  });
 });
 
 app.post('/api/actions', (req, res) => {

@@ -1,4 +1,4 @@
-import { clamp, modulo, nowMs, nowSessionSec } from './utils.js';
+import { clamp, modulo, nowMs, nowSessionSec, formatSeconds } from './utils.js';
 import { getClipById } from './state.js';
 import {
   createEchoReverbState,
@@ -1019,4 +1019,131 @@ export function endLoop(appState) {
     startSec: appState.loopRegionStartSec,
     endSec: Number((appState.loopRegionStartSec + appState.loopRegionLengthSec).toFixed(3)),
   };
+}
+
+function getFirstEmptyTrackId(appState) {
+  for (const track of appState.tracks) {
+    const hasClips = appState.clips.some((clip) => clip.trackId === track.id);
+    if (!hasClips) {
+      return track.id;
+    }
+  }
+  const newTrackId = `track-${appState.tracks.length + 1}`;
+  appState.tracks.push({ id: newTrackId, name: `Track ${appState.tracks.length + 1}` });
+  return newTrackId;
+}
+
+export async function importAudioFile(appState, file) {
+  await ensureContext(appState);
+
+  const arrayBuffer = await file.arrayBuffer();
+  const audioBuffer = await appState.audio.context.decodeAudioData(arrayBuffer.slice(0));
+
+  if (appState.sessionStartSec == null) {
+    appState.sessionStartSec = nowMs() / 1000;
+  }
+
+  const trackId = getFirstEmptyTrackId(appState);
+  const clipNumber = appState.nextClipIndex;
+  const duration = Number(audioBuffer.duration.toFixed(2));
+  const clip = {
+    id: `clip-${clipNumber}`,
+    trackId,
+    startTimeSec: 0,
+    endTimeSec: duration,
+    duration,
+    label: file.name.replace(/\.[^.]+$/, ''),
+    status: 'ready',
+    blob: new Blob([arrayBuffer], { type: file.type || 'audio/mpeg' }),
+    buffer: audioBuffer,
+    lockTrack: false,
+    maxDurationSec: null,
+    bpm: null,
+    beatTimes: null,
+  };
+
+  appState.nextClipIndex += 1;
+  appState.clips.push(clip);
+  appState.selectedClipId = clip.id;
+  appState.activeTrackId = trackId;
+  appState.pendingStatusMessage = `Imported "${clip.label}" (${formatSeconds(duration)}s) on ${trackId}. Analyzing BPM...`;
+
+  analyzeBpm(clip, file);
+
+  return clip;
+}
+
+function analyzeBpm(clip, file) {
+  const formData = new FormData();
+  formData.append('audio', file);
+
+  fetch('/api/analyze-bpm', { method: 'POST', body: formData })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.ok && data.beatTimes) {
+        clip.bpm = data.bpm;
+        clip.beatTimes = data.beatTimes;
+        console.log(`[bpm] ${clip.label}: ${data.bpm.toFixed(1)} BPM, ${data.beatTimes.length} beats`);
+      }
+    })
+    .catch((err) => {
+      console.warn('[bpm] analysis failed for', clip.label, err);
+    });
+}
+
+function floatTo16Bit(float32Array) {
+  const int16 = new Int16Array(float32Array.length);
+  for (let i = 0; i < float32Array.length; i += 1) {
+    const s = clamp(float32Array[i], -1, 1);
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return int16;
+}
+
+export function exportSessionToMp3(appState) {
+  const sessionPlayback = buildSessionPlaybackBuffer(appState);
+  if (!sessionPlayback) {
+    throw new Error('No clips to export.');
+  }
+
+  const { buffer } = sessionPlayback;
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const kbps = 192;
+
+  if (typeof globalThis.lamejs === 'undefined') {
+    throw new Error('MP3 encoder not loaded.');
+  }
+
+  const mp3encoder = new globalThis.lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
+  const left = floatTo16Bit(buffer.getChannelData(0));
+  const right = numChannels > 1 ? floatTo16Bit(buffer.getChannelData(1)) : left;
+
+  const mp3Data = [];
+  const sampleBlockSize = 1152;
+  for (let i = 0; i < left.length; i += sampleBlockSize) {
+    const leftChunk = left.subarray(i, i + sampleBlockSize);
+    const rightChunk = right.subarray(i, i + sampleBlockSize);
+    const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  const end = mp3encoder.flush();
+  if (end.length > 0) {
+    mp3Data.push(end);
+  }
+
+  const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mix-export.mp3';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  return { duration: buffer.duration };
 }

@@ -438,6 +438,21 @@ label {
   color: #082a19;
 }
 
+.clip-beat-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.beat-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 230, 50, 0.85);
+}
+
 .playhead {
   position: absolute;
   top: 0;

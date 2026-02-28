@@ -548,6 +548,41 @@ function wireControls() {
     });
   });
 
+  dom.importBtn.addEventListener('click', () => {
+    dom.importFileInput.click();
+  });
+
+  dom.importFileInput.addEventListener('change', () => {
+    const file = dom.importFileInput.files[0];
+    if (!file) {
+      return;
+    }
+    setStatusMessage('Importing...');
+    audio.importAudioFile(state, file)
+      .then(() => {
+        render();
+      })
+      .catch((error) => {
+        console.error('[import]', error);
+        setStatusMessage(error?.message || 'Import failed.', true);
+        render();
+      })
+      .finally(() => {
+        dom.importFileInput.value = '';
+      });
+  });
+
+  dom.exportBtn.addEventListener('click', () => {
+    try {
+      const result = audio.exportSessionToMp3(state);
+      setStatusMessage(`Exported MP3 (${result.duration.toFixed(2)}s).`);
+    } catch (error) {
+      console.error('[export]', error);
+      setStatusMessage(error?.message || 'Export failed.', true);
+    }
+    render();
+  });
+
   dom.timelineScale.addEventListener('input', () => {
     state.timeline.pixelsPerSecond = Number(dom.timelineScale.value);
     render();

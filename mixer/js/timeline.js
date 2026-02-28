@@ -140,6 +140,20 @@ export function createClipElement(appState, clip, scale, onClipSelect) {
   clipEl.prepend(visual);
   renderClipWaveform(clip, visual);
 
+  if (clip.beatTimes && clip.beatTimes.length) {
+    const markersContainer = document.createElement('span');
+    markersContainer.className = 'clip-beat-markers';
+    const clipDuration = (clip.endTimeSec ?? clip.startTimeSec) - clip.startTimeSec;
+    for (const beatSec of clip.beatTimes) {
+      if (beatSec < 0 || beatSec > clipDuration) continue;
+      const marker = document.createElement('span');
+      marker.className = 'beat-marker';
+      marker.style.left = `${(beatSec / clipDuration) * 100}%`;
+      markersContainer.appendChild(marker);
+    }
+    clipEl.appendChild(markersContainer);
+  }
+
   const content = document.createElement('span');
   content.className = 'clip-content';
   content.appendChild(label);

@@ -13,6 +13,9 @@ export const dom = {
   playbackBtn: document.getElementById('playbackBtn'),
   startLoopBtn: document.getElementById('startLoopBtn'),
   endLoopBtn: document.getElementById('endLoopBtn'),
+  importBtn: document.getElementById('importBtn'),
+  exportBtn: document.getElementById('exportBtn'),
+  importFileInput: document.getElementById('importFileInput'),
 
   timelineScale: document.getElementById('timelineScale'),
   timelineScaleValue: document.getElementById('timelineScaleValue'),
