@@ -1,85 +1,43 @@
-# mlband
+# ListenHacks Project Collection
 
-Hand tracking and finger gesture recognition using MediaPipe and OpenCV.
+This repository contains two separate projects:
 
-## What it does
+## 📁 Projects
 
-`testhands.py` opens your webcam and tracks both hands in real time. It:
-- Detects left and right hands (color-coded green and red)
-- Counts how many fingers are extended on each hand (0–5)
-- Labels the gesture on screen (Fist, One Finger, Two Fingers, ... Open Hand)
+### 🎵 [Music Generator](music_generator/)
+A singing voice and music generator using the Eleven Labs API. Generate real singing with melody and instrumental music from lyrics.
 
-Press **ESC** to quit.
+**Features:**
+- Real singing with melody and music using Music API
+- Interactive conversational agent for lyric creation
+- Text-to-Speech mode for expressive delivery
+- Customizable genre, tempo, mood, and voice settings
 
-## Prerequisites
-
-- **Python 3.10** — mediapipe does not reliably support Python 3.11+. You must use 3.10.
-- **A webcam** — the script captures from your default camera.
-- **macOS / Linux / Windows** — OpenCV and MediaPipe support all three, but setup steps below are for macOS/Linux. Windows users should use `venv310\Scripts\activate` instead of `source`.
-
-### Installing Python 3.10
-
-**macOS (Homebrew):**
+**Get Started:**
 ```bash
-brew install python@3.10
+cd music_generator
+# Follow the README in that folder for setup
 ```
 
-**Ubuntu/Debian:**
+### 👋 [Hand Tracking](hand_tracking/)
+A hand tracking application using MediaPipe and OpenCV for finger detection and gesture recognition.
+
+**Features:**
+- Real-time hand detection via webcam
+- Finger counting and gesture recognition
+- Visual feedback with landmark tracking
+
+**Get Started:**
 ```bash
-sudo apt update
-sudo apt install python3.10 python3.10-venv
+cd hand_tracking
+# Run the hand tracking application
+python testhands.py
 ```
 
-**Windows:**
+## 🚀 Quick Start
 
-Download Python 3.10 from https://www.python.org/downloads/ and make sure to check "Add to PATH" during installation.
+Each project is self-contained in its own directory. Navigate to the project folder you're interested in and follow its specific README for installation and usage instructions.
 
-To verify:
-```bash
-python3.10 --version
-# Should print: Python 3.10.x
-```
+## 📝 License
 
-## Setup
-
-1. **Clone the repo:**
-   ```bash
-   git clone <repo-url>
-   cd mlband
-   ```
-
-2. **Create a virtual environment with Python 3.10:**
-   ```bash
-   python3.10 -m venv venv310
-   ```
-
-3. **Activate the virtual environment:**
-
-   macOS/Linux:
-   ```bash
-   source venv310/bin/activate
-   ```
-
-   Windows:
-   ```cmd
-   venv310\Scripts\activate
-   ```
-
-4. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Run the script:**
-   ```bash
-   python testhands.py
-   ```
-
-6. **Quit:** Press **ESC** in the OpenCV window.
-
-## Troubleshooting
-
-- **"Can't read camera. Exiting."** — Make sure your webcam is connected and not in use by another app.
-- **macOS camera permission** — You may need to grant camera access to Terminal (or iTerm/VS Code) in System Settings > Privacy & Security > Camera.
-- **pip can't find mediapipe** — You are probably not using Python 3.10. Run `python --version` inside your activated venv to check.
-- **Window doesn't appear on macOS** — Try clicking on the Python icon in your dock. OpenCV windows sometimes open behind other apps.
+See individual project folders for specific license information.
