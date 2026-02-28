@@ -301,7 +301,25 @@ function wireControls() {
     switch (command) {
       case 'START_RECORD':
         if (!state.recordingActive) {
-          runAction({ type: ACTION_TYPES.START_RECORD });
+          // Auto-enable mic if not already enabled
+          if (!state.micEnabled) {
+            runAction({
+              type: ACTION_TYPES.ENABLE_MIC,
+              payload: {
+                onLevelChange: (level) => {
+                  dom.levelFill.style.width = `${level}%`;
+                },
+              },
+            });
+            // Wait a moment for mic to initialize, then start recording
+            setTimeout(() => {
+              if (state.micEnabled) {
+                runAction({ type: ACTION_TYPES.START_RECORD });
+              }
+            }, 500);
+          } else {
+            runAction({ type: ACTION_TYPES.START_RECORD });
+          }
         }
         break;
       case 'END_RECORD':

@@ -5,6 +5,8 @@
  * - Song generation trigger detection
  */
 
+import { ensureContext } from './audio.js';
+
 class ChatbotController {
   constructor() {
     this.conversation = [];
@@ -298,13 +300,16 @@ class ChatbotController {
     }
 
     // Check if main app state is available
-    if (!window.state || !window.state.audio || !window.state.audio.context) {
+    if (!window.state) {
       this.updateStatus('⚠️ Timeline not ready');
       return;
     }
 
     try {
       this.updateStatus('📥 Adding to timeline...', true);
+      
+      // Ensure audio context is initialized
+      await ensureContext(window.state);
       
       // Fetch the audio file
       const response = await fetch(this.songAudio.src);
