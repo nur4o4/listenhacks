@@ -302,6 +302,7 @@ function wireControls() {
       return null;
     }
 
+    // Left hand gestures
     if (gestureToken === '1') {
       return 'PLAY_FROM_START';
     }
@@ -309,13 +310,16 @@ function wireControls() {
       return 'PAUSE';
     }
     if (gestureToken === 'open') {
-      return 'CONTINUE';
+      return 'START_CHATBOT_RECORDING'; // 5 fingers - start recording
     }
     if (gestureToken === '2') {
       return 'START_LOOP';
     }
     if (gestureToken === '3') {
       return 'END_LOOP';
+    }
+    if (gestureToken === '4') {
+      return 'STOP_CHATBOT_RECORDING'; // 4 fingers - stop recording
     }
     return null;
   };
@@ -391,6 +395,16 @@ function wireControls() {
           type: ACTION_TYPES.SET_REVERB_ENABLED,
           payload: { enabled: !state.effects.reverb.enabled },
         });
+        break;
+      case 'START_CHATBOT_RECORDING':
+        if (window.chatbot && !window.chatbot.isListening) {
+          window.chatbot.startListening();
+        }
+        break;
+      case 'STOP_CHATBOT_RECORDING':
+        if (window.chatbot && window.chatbot.isListening) {
+          window.chatbot.stopListening();
+        }
         break;
       default:
         break;
