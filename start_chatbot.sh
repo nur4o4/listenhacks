@@ -27,9 +27,16 @@ if [ ! -d "mixer/server/node_modules" ]; then
     cd mixer/server && npm install && cd ../..
 fi
 
-# Check Python dependencies
-echo "🐍 Make sure Python dependencies are installed:"
-echo "   cd music_generator && pip install -r requirements.txt"
+# Check/install Python dependencies automatically
+echo "🐍 Checking Python dependencies..."
+if ! python3 -c "from elevenlabs.client import ElevenLabs" >/dev/null 2>&1; then
+    echo "Installing Python dependencies for music generator..."
+    python3 -m pip install -r music_generator/requirements.txt || {
+        echo "❌ Failed to install Python dependencies"
+        exit 1
+    }
+fi
+echo "✓ Python dependencies ready"
 echo ""
 
 # Start music generator API in background

@@ -383,17 +383,16 @@ function wireControls() {
     ctx.clearRect(0, 0, dom.handTrackingCanvas.width, dom.handTrackingCanvas.height);
   };
 
-  dom.toggleHandTrackingBtn.addEventListener('click', async () => {
+  const startHandTrackingStream = async (showError = true) => {
     if (state.handTrackingEnabled) {
-      stopHandTrackingStream();
-      setStatusMessage('Hand-tracking video stopped.');
-      render();
-      return;
+      return true;
     }
 
     if (typeof globalThis.Hands !== 'function' || typeof globalThis.Camera !== 'function') {
-      setStatusMessage('Hand tracking libraries failed to load.', true);
-      return;
+      if (showError) {
+        setStatusMessage('Hand tracking libraries failed to load.', true);
+      }
+      return false;
     }
 
     try {
@@ -509,13 +508,27 @@ function wireControls() {
       await dom.handTrackingVideo.play();
       setStatusMessage('Hand-tracking video started.');
       render();
+      return true;
     } catch (error) {
       stopHandTrackingStream();
       state.handTrackingEnabled = false;
       state.handTrackingStream = null;
-      setStatusMessage(error?.message || 'Could not access camera for hand-tracking video.', true);
+      if (showError) {
+        setStatusMessage(error?.message || 'Could not access camera for hand-tracking video.', true);
+      }
       render();
+      return false;
     }
+  };
+
+  dom.toggleHandTrackingBtn.addEventListener('click', async () => {
+    if (state.handTrackingEnabled) {
+      stopHandTrackingStream();
+      setStatusMessage('Hand-tracking video stopped.');
+      render();
+      return;
+    }
+    await startHandTrackingStream();
   });
 
   dom.startRecordBtn.addEventListener('click', () => {
@@ -594,11 +607,15 @@ function wireControls() {
   window.addEventListener('beforeunload', () => {
     stopHandTrackingStream();
   });
+
+  return {
+    startHandTrackingStream,
+  };
 }
 
 function initialize() {
   wireEffects();
-  wireControls();
+  const controls = wireControls();
   state.onTransportEnded = () => {
     render();
   };
@@ -608,7 +625,17 @@ function initialize() {
   audio.setMonitoringEnabled(state, state.monitoringEnabled);
 
   render();
-  setStatusMessage('Click Enable Mic first, then record and play.');
+
+  runAction({
+    type: ACTION_TYPES.ENABLE_MIC,
+    payload: {
+      onLevelChange: (level) => {
+        dom.levelFill.style.width = `${level}%`;
+      },
+    },
+  });
+  controls.startHandTrackingStream(false);
+  setStatusMessage('Auto-enabling mic and hand video (permission may be required).');
 }
 
 initialize();
