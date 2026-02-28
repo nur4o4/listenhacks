@@ -1,4 +1,3 @@
-import { clamp } from './utils.js';
 import * as audio from './audio.js';
 import { logAction } from './logging.js';
 
@@ -11,14 +10,7 @@ export const ACTION_TYPES = Object.freeze({
   START_LOOP: 'START_LOOP',
   END_LOOP: 'END_LOOP',
   SET_REVERB_ENABLED: 'SET_REVERB_ENABLED',
-  SET_REVERB_DECAY: 'SET_REVERB_DECAY',
-  SET_DELAY_ENABLED: 'SET_DELAY_ENABLED',
-  SET_DELAY_TIME: 'SET_DELAY_TIME',
-  SET_DELAY_FEEDBACK: 'SET_DELAY_FEEDBACK',
-  SET_DELAY_WET: 'SET_DELAY_WET',
-  SET_DELAY_ADVANCED_CLAMP: 'SET_DELAY_ADVANCED_CLAMP',
-  SET_AUTOTUNE_ENABLED: 'SET_AUTOTUNE_ENABLED',
-  SET_AUTOTUNE_SEMITONES: 'SET_AUTOTUNE_SEMITONES',
+  SET_DISTORTION_ENABLED: 'SET_DISTORTION_ENABLED',
   TOGGLE_MONITORING: 'TOGGLE_MONITORING',
 });
 
@@ -45,20 +37,6 @@ function sanitizePayload(payload) {
     cleaned[key] = value;
   });
   return cleaned;
-}
-
-function numericPayloadValue(payload, keys, fallback = 0) {
-  for (const key of keys) {
-    if (payload[key] == null) {
-      continue;
-    }
-    const parsed = Number(payload[key]);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return fallback;
 }
 
 export function isActionTypeAllowed(type) {
@@ -196,65 +174,10 @@ export async function dispatchAction(appState, action = {}) {
         break;
       }
 
-      case ACTION_TYPES.SET_REVERB_DECAY: {
-        const decay = numericPayloadValue(payload, ['value', 'decay']);
-        appState.effects.reverb.decay = clamp(decay, 0.2, 8);
+      case ACTION_TYPES.SET_DISTORTION_ENABLED: {
+        appState.effects.distortion.enabled = !!payload.enabled;
         audio.updateEffectsNodes(appState);
-        label = `Reverb decay set to ${appState.effects.reverb.decay}`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_DELAY_ENABLED: {
-        appState.effects.delay.enabled = !!payload.enabled;
-        audio.updateEffectsNodes(appState);
-        label = `Delay ${appState.effects.delay.enabled ? 'enabled' : 'disabled'}`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_DELAY_TIME: {
-        const delaySeconds = numericPayloadValue(payload, ['value', 'seconds', 'delaySeconds']);
-        appState.effects.delay.delaySeconds = clamp(delaySeconds, 0.05, 1.2);
-        audio.updateEffectsNodes(appState);
-        label = `Delay time set to ${appState.effects.delay.delaySeconds}`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_DELAY_FEEDBACK: {
-        const maxFeedback = audio.getDelayFeedbackMax(appState.effects.delay);
-        const feedback = numericPayloadValue(payload, ['value', 'feedback', 'percent']) / 100;
-        appState.effects.delay.feedback = clamp(feedback, 0, maxFeedback);
-        audio.updateEffectsNodes(appState);
-        label = `Delay feedback set to ${(appState.effects.delay.feedback * 100).toFixed(0)}%`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_DELAY_WET: {
-        const wet = numericPayloadValue(payload, ['value', 'wet', 'percent']) / 100;
-        appState.effects.delay.wet = clamp(wet, 0, 1);
-        audio.updateEffectsNodes(appState);
-        label = `Delay wet set to ${(appState.effects.delay.wet * 100).toFixed(0)}%`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_DELAY_ADVANCED_CLAMP: {
-        appState.effects.delay.advancedClamp = !!payload.enabled;
-        audio.updateEffectsNodes(appState);
-        label = `Delay advanced clamp ${appState.effects.delay.advancedClamp ? 'enabled' : 'disabled'}`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_AUTOTUNE_ENABLED: {
-        appState.effects.autotune.enabled = !!payload.enabled;
-        audio.updateEffectsNodes(appState);
-        label = `Autotune ${appState.effects.autotune.enabled ? 'enabled' : 'disabled'}`;
-        break;
-      }
-
-      case ACTION_TYPES.SET_AUTOTUNE_SEMITONES: {
-        const semitones = numericPayloadValue(payload, ['value', 'semitones']);
-        appState.effects.autotune.semitones = clamp(Math.round(semitones), -12, 12);
-        audio.updateEffectsNodes(appState);
-        label = `Autotune semitones set to ${appState.effects.autotune.semitones}`;
+        label = `Distortion ${appState.effects.distortion.enabled ? 'enabled' : 'disabled'}`;
         break;
       }
 

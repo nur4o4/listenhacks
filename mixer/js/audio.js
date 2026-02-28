@@ -1,26 +1,21 @@
 import { clamp, modulo, nowMs, nowSessionSec } from './utils.js';
 import { getClipById } from './state.js';
+import {
+  createEchoReverbState,
+  processEchoReverbBlock,
+  setEchoReverbParams,
+} from './effects-engine.js';
 
-function buildReverbBuffer(appState, decay) {
-  const ctx = appState.audio.context;
-  const seconds = clamp(decay, 0.2, 8);
-  const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
-  const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
-  for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
-    const data = impulse.getChannelData(channel);
-    for (let i = 0; i < data.length; i += 1) {
-      const decayEnvelope = Math.pow(1 - i / data.length, seconds);
-      data[i] = (Math.random() * 2 - 1) * decayEnvelope;
-    }
+function buildDistortionCurve(amount = 320) {
+  const samples = 44100;
+  const curve = new Float32Array(samples);
+  const k = clamp(amount, 0, 1000);
+  const deg = Math.PI / 180;
+  for (let i = 0; i < samples; i += 1) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
   }
-  return impulse;
-}
-
-function playbackRateFromAutotune(appState) {
-  if (!appState.effects.autotune.enabled) {
-    return 1;
-  }
-  return Math.pow(2, appState.effects.autotune.semitones / 12);
+  return curve;
 }
 
 const EFFECT_RAMP_SECONDS = 0.06;
@@ -29,14 +24,8 @@ const OVERLAP_EPSILON = 0.0005;
 const LOOP_MIX_CHANNELS = 2;
 const SOFT_CLIP_GAIN = 1.15;
 const MIN_LOOP_REGION_SECONDS = 0.05;
-
-export function delayFeedbackMax(delayState) {
-  return delayState?.advancedClamp ? 0.75 : 0.65;
-}
-
-export function getDelayFeedbackMax(delayState) {
-  return delayFeedbackMax(delayState);
-}
+const DISTORTION_DRIVE = 320;
+const DISTORTION_WET_GAIN = 0.65;
 
 function rampGainValue(gainNode, targetValue, context, seconds = EFFECT_RAMP_SECONDS) {
   if (!gainNode || !gainNode.gain) {
@@ -47,16 +36,6 @@ function rampGainValue(gainNode, targetValue, context, seconds = EFFECT_RAMP_SEC
   gainNode.gain.cancelScheduledValues(now);
   gainNode.gain.setValueAtTime(gainNode.gain.value, now);
   gainNode.gain.linearRampToValueAtTime(clamped, now + seconds);
-}
-
-function fadeDelayLoopOut(appState) {
-  if (!appState.audio.context || !appState.audio.delayWet || !appState.audio.delayFeedback) {
-    return;
-  }
-
-  const ctx = appState.audio.context;
-  rampGainValue(appState.audio.delayWet, 0, ctx, STOP_FADE_SECONDS);
-  rampGainValue(appState.audio.delayFeedback, 0, ctx, STOP_FADE_SECONDS);
 }
 
 function intervalsOverlap(startA, endA, startB, endB) {
@@ -371,45 +350,52 @@ export async function ensureContext(appState) {
     const ctx = appState.audio.context;
     appState.audio.playbackGain = ctx.createGain();
     appState.audio.inputGain = appState.audio.playbackGain;
-    appState.audio.dryBus = ctx.createGain();
     appState.audio.master = ctx.createGain();
-
-    appState.audio.reverbSend = ctx.createGain();
-    appState.audio.reverbWet = ctx.createGain();
-    appState.audio.delaySend = ctx.createGain();
-    appState.audio.delayInput = ctx.createGain();
-    appState.audio.delayNode = ctx.createDelay(2);
-    appState.audio.delayFeedback = ctx.createGain();
-    appState.audio.delayFeedbackFilter = ctx.createBiquadFilter();
-    appState.audio.delayWet = ctx.createGain();
+    appState.audio.echoReverbNode = ctx.createScriptProcessor(1024, LOOP_MIX_CHANNELS, LOOP_MIX_CHANNELS);
+    appState.audio.echoReverbState = createEchoReverbState(
+      ctx.sampleRate,
+      LOOP_MIX_CHANNELS,
+      appState.effects.reverb.params,
+    );
+    appState.audio.distortionSend = ctx.createGain();
+    appState.audio.distortionNode = ctx.createWaveShaper();
+    appState.audio.distortionWet = ctx.createGain();
     appState.audio.safetyCompressor = ctx.createDynamicsCompressor();
-    appState.audio.reverbNode = ctx.createConvolver();
     appState.audio.levelAnalyser = ctx.createAnalyser();
     appState.audio.levelAnalyser.fftSize = 512;
     appState.audio.levelAnalyser.smoothingTimeConstant = 0.85;
     appState.meterData = new Uint8Array(appState.audio.levelAnalyser.fftSize);
 
-    appState.audio.playbackGain.connect(appState.audio.dryBus);
-    appState.audio.dryBus.connect(appState.audio.master);
+    appState.audio.playbackGain.connect(appState.audio.echoReverbNode);
+    appState.audio.echoReverbNode.connect(appState.audio.master);
     appState.audio.master.connect(appState.audio.safetyCompressor);
     appState.audio.safetyCompressor.connect(ctx.destination);
 
-    appState.audio.playbackGain.connect(appState.audio.reverbSend);
-    appState.audio.reverbSend.connect(appState.audio.reverbNode);
-    appState.audio.reverbNode.connect(appState.audio.reverbWet);
-    appState.audio.reverbWet.connect(appState.audio.master);
+    appState.audio.playbackGain.connect(appState.audio.distortionSend);
+    appState.audio.distortionSend.connect(appState.audio.distortionNode);
+    appState.audio.distortionNode.connect(appState.audio.distortionWet);
+    appState.audio.distortionWet.connect(appState.audio.master);
 
-    appState.audio.playbackGain.connect(appState.audio.delaySend);
-    appState.audio.delaySend.connect(appState.audio.delayInput);
-    appState.audio.delayInput.connect(appState.audio.delayNode);
-    appState.audio.delayNode.connect(appState.audio.delayWet);
-    appState.audio.delayNode.connect(appState.audio.delayFeedback);
-    appState.audio.delayFeedback.connect(appState.audio.delayFeedbackFilter);
-    appState.audio.delayFeedbackFilter.connect(appState.audio.delayInput);
-    appState.audio.delayWet.connect(appState.audio.master);
-    appState.audio.delayFeedbackFilter.type = 'lowpass';
-    appState.audio.delayFeedbackFilter.frequency.value = 4200;
-    appState.audio.delayFeedbackFilter.Q.value = 0.9;
+    appState.audio.echoReverbNode.onaudioprocess = (event) => {
+      const inputBuffer = event.inputBuffer;
+      const outputBuffer = event.outputBuffer;
+      const channelCount = outputBuffer.numberOfChannels;
+      const inputChannelCount = Math.max(1, inputBuffer.numberOfChannels);
+      const inputChannels = [];
+      const outputChannels = [];
+      for (let channel = 0; channel < channelCount; channel += 1) {
+        inputChannels.push(inputBuffer.getChannelData(Math.min(channel, inputChannelCount - 1)));
+        outputChannels.push(outputBuffer.getChannelData(channel));
+      }
+
+      processEchoReverbBlock(
+        appState.audio.echoReverbState,
+        inputChannels,
+        outputChannels,
+        outputBuffer.length,
+        appState.effects.reverb.enabled,
+      );
+    };
 
     appState.audio.safetyCompressor.threshold.value = -15;
     appState.audio.safetyCompressor.knee.value = 12;
@@ -426,40 +412,19 @@ export async function ensureContext(appState) {
 }
 
 export function updateEffectsNodes(appState) {
-  if (!appState.audio.context || !appState.audio.playbackGain || !appState.audio.reverbNode) {
+  if (!appState.audio.context || !appState.audio.playbackGain || !appState.audio.distortionNode) {
     return;
   }
 
+  setEchoReverbParams(appState.audio.echoReverbState, appState.effects.reverb.params);
+
   const ctx = appState.audio.context;
-  const reverb = appState.effects.reverb;
-  const delay = appState.effects.delay;
+  const distortion = appState.effects.distortion;
+  appState.audio.distortionNode.curve = buildDistortionCurve(DISTORTION_DRIVE);
+  appState.audio.distortionNode.oversample = '4x';
+  rampGainValue(appState.audio.distortionSend, distortion.enabled ? 1 : 0, ctx);
+  rampGainValue(appState.audio.distortionWet, distortion.enabled ? DISTORTION_WET_GAIN : 0, ctx);
 
-  appState.audio.reverbNode.buffer = buildReverbBuffer(appState, reverb.decay);
-  rampGainValue(appState.audio.reverbSend, reverb.enabled ? 1 : 0, ctx);
-  rampGainValue(appState.audio.reverbWet, reverb.enabled ? reverb.wet : 0, ctx);
-
-  const maxFeedback = delayFeedbackMax(delay);
-  delay.feedback = clamp(delay.feedback, 0, maxFeedback);
-
-  appState.audio.delayNode.delayTime.value = clamp(delay.delaySeconds, 0.05, 1.2);
-  rampGainValue(appState.audio.delaySend, delay.enabled ? 1 : 0, ctx);
-  rampGainValue(appState.audio.delayWet, delay.enabled ? delay.wet : 0, ctx);
-  rampGainValue(appState.audio.delayFeedback, delay.enabled ? delay.feedback : 0, ctx);
-
-  if (appState.effects.autotune.enabled && appState.playback.source) {
-    const rate = playbackRateFromAutotune(appState);
-    const now = ctx.currentTime;
-    appState.playback.source.playbackRate.cancelScheduledValues(now);
-    appState.playback.source.playbackRate.setValueAtTime(appState.playback.source.playbackRate.value, now);
-    appState.playback.source.playbackRate.linearRampToValueAtTime(rate, now + EFFECT_RAMP_SECONDS);
-    appState.playback.playbackRate = rate;
-  } else if (!appState.effects.autotune.enabled && appState.playback.source) {
-    const now = ctx.currentTime;
-    appState.playback.source.playbackRate.cancelScheduledValues(now);
-    appState.playback.source.playbackRate.setValueAtTime(appState.playback.source.playbackRate.value, now);
-    appState.playback.source.playbackRate.linearRampToValueAtTime(1, now + EFFECT_RAMP_SECONDS);
-    appState.playback.playbackRate = 1;
-  }
 }
 
 export function startMeter(appState, onLevelChange) {
@@ -809,7 +774,7 @@ function createTransport(appState, buffer, options = {}) {
   const safeOffset = loop
     ? modulo(offset, buffer.duration)
     : clamp(offset, 0, Math.max(0, buffer.duration - 0.000001));
-  const rate = playbackRateFromAutotune(appState);
+  const rate = 1;
 
   source.connect(appState.audio.playbackGain);
   source.playbackRate.value = rate;
@@ -899,7 +864,6 @@ export function stopTransport(appState, reason = 'manual') {
 
   const shouldFade = ['pause', 'manual', 'endLoop', 'replace', 'stop', 'stopLoop'].includes(reason);
   if (shouldFade) {
-    fadeDelayLoopOut(appState);
     try {
       appState.playback.source.stop(appState.audio.context.currentTime + STOP_FADE_SECONDS);
       return;

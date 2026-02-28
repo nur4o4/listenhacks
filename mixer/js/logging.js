@@ -17,8 +17,7 @@ export function snapshot(appState) {
     loopRegionLengthSeconds: formatSeconds(appState.loopRegionLengthSec || 0),
     effectsEnabled: {
       reverb: appState.effects.reverb.enabled,
-      delay: appState.effects.delay.enabled,
-      autotune: appState.effects.autotune.enabled,
+      distortion: appState.effects.distortion.enabled,
     },
     clips: appState.clips.length,
     selectedClipId: appState.selectedClipId,

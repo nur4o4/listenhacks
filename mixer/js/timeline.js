@@ -89,17 +89,10 @@ function createEffectBadges(appState) {
     wrap.appendChild(badge);
   }
 
-  if (appState.effects.delay.enabled) {
+  if (appState.effects.distortion.enabled) {
     const badge = document.createElement('span');
-    badge.className = 'clip-badge delay';
-    badge.textContent = 'E';
-    wrap.appendChild(badge);
-  }
-
-  if (appState.effects.autotune.enabled) {
-    const badge = document.createElement('span');
-    badge.className = 'clip-badge auto';
-    badge.textContent = 'P';
+    badge.className = 'clip-badge distortion';
+    badge.textContent = 'D';
     wrap.appendChild(badge);
   }
 

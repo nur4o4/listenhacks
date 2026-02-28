@@ -433,12 +433,7 @@ label {
   color: #0d1130;
 }
 
-.clip-badge.delay {
-  background: #f56bff;
-  color: #0d1130;
-}
-
-.clip-badge.auto {
+.clip-badge.distortion {
   background: #54df9a;
   color: #082a19;
 }

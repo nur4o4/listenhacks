@@ -82,11 +82,6 @@ function render() {
 
   dom.loopLength.textContent = `${formatSeconds(loopLengthSeconds || 0)} s`;
   dom.timelineScaleValue.textContent = String(state.timeline.pixelsPerSecond);
-  dom.reverbDecayValue.textContent = formatSeconds(state.effects.reverb.decay);
-  dom.delayTimeValue.textContent = formatSeconds(state.effects.delay.delaySeconds);
-  dom.delayFeedbackValue.textContent = Math.round(state.effects.delay.feedback * 100);
-  dom.delayWetValue.textContent = Math.round(state.effects.delay.wet * 100);
-  dom.autotuneValue.textContent = state.effects.autotune.semitones;
 
   dom.enableMicBtn.disabled = state.micEnabled;
   dom.handTrackingState.textContent = state.handTrackingEnabled ? 'On' : 'Off';
@@ -105,13 +100,7 @@ function render() {
   dom.monitorToggle.title = 'Monitoring disabled in this demo';
 
   dom.reverbEnabled.checked = state.effects.reverb.enabled;
-  dom.delayEnabled.checked = state.effects.delay.enabled;
-  dom.autotuneEnabled.checked = state.effects.autotune.enabled;
-  dom.delayAdvanced.checked = state.effects.delay.advancedClamp;
-  dom.reverbDecay.value = String(state.effects.reverb.decay);
-  dom.delayTime.value = String(state.effects.delay.delaySeconds);
-  dom.delayFeedback.value = String(Math.round(state.effects.delay.feedback * 100));
-  dom.delayWet.value = String(Math.round(state.effects.delay.wet * 100));
+  dom.distortionEnabled.checked = state.effects.distortion.enabled;
 
   const playbackLabel = state.isPlaybackPlaying
     ? 'Pause'
@@ -168,61 +157,13 @@ function wireEffects() {
     });
   });
 
-  dom.reverbDecay.addEventListener('input', () => {
+  dom.distortionEnabled.addEventListener('change', () => {
     runAction({
-      type: ACTION_TYPES.SET_REVERB_DECAY,
-      payload: { value: Number(dom.reverbDecay.value) },
+      type: ACTION_TYPES.SET_DISTORTION_ENABLED,
+      payload: { enabled: dom.distortionEnabled.checked },
     });
   });
 
-  dom.delayEnabled.addEventListener('change', () => {
-    runAction({
-      type: ACTION_TYPES.SET_DELAY_ENABLED,
-      payload: { enabled: dom.delayEnabled.checked },
-    });
-  });
-
-  dom.delayTime.addEventListener('input', () => {
-    runAction({
-      type: ACTION_TYPES.SET_DELAY_TIME,
-      payload: { value: Number(dom.delayTime.value) },
-    });
-  });
-
-  dom.delayFeedback.addEventListener('input', () => {
-    runAction({
-      type: ACTION_TYPES.SET_DELAY_FEEDBACK,
-      payload: { value: Number(dom.delayFeedback.value) },
-    });
-  });
-
-  dom.delayWet.addEventListener('input', () => {
-    runAction({
-      type: ACTION_TYPES.SET_DELAY_WET,
-      payload: { value: Number(dom.delayWet.value) },
-    });
-  });
-
-  dom.delayAdvanced.addEventListener('change', () => {
-    runAction({
-      type: ACTION_TYPES.SET_DELAY_ADVANCED_CLAMP,
-      payload: { enabled: dom.delayAdvanced.checked },
-    });
-  });
-
-  dom.autotuneEnabled.addEventListener('change', () => {
-    runAction({
-      type: ACTION_TYPES.SET_AUTOTUNE_ENABLED,
-      payload: { enabled: dom.autotuneEnabled.checked },
-    });
-  });
-
-  dom.autotuneSemitones.addEventListener('input', () => {
-    runAction({
-      type: ACTION_TYPES.SET_AUTOTUNE_SEMITONES,
-      payload: { value: Number(dom.autotuneSemitones.value) },
-    });
-  });
 }
 
 function wireControls() {
@@ -256,6 +197,11 @@ function wireControls() {
     Left: null,
     Right: null,
   };
+  const handGestureStability = {
+    Left: { token: null, frames: 0 },
+    Right: { token: null, frames: 0 },
+  };
+  const GESTURE_STABLE_FRAMES = 4;
 
   const countFingers = (handLandmarks, handednessLabel) => {
     const tipsIds = [4, 8, 12, 16, 20];
@@ -293,11 +239,11 @@ function wireControls() {
       if (gestureToken === 'fist') {
         return 'END_RECORD';
       }
-      if (gestureToken === '1') {
-        return 'TOGGLE_AUTOTUNE';
-      }
       if (gestureToken === '2') {
         return 'TOGGLE_REVERB';
+      }
+      if (gestureToken === '3') {
+        return 'TOGGLE_DISTORTION';
       }
       return null;
     }
@@ -384,10 +330,10 @@ function wireControls() {
           runAction({ type: ACTION_TYPES.END_LOOP });
         }
         break;
-      case 'TOGGLE_AUTOTUNE':
+      case 'TOGGLE_DISTORTION':
         runAction({
-          type: ACTION_TYPES.SET_AUTOTUNE_ENABLED,
-          payload: { enabled: !state.effects.autotune.enabled },
+          type: ACTION_TYPES.SET_DISTORTION_ENABLED,
+          payload: { enabled: !state.effects.distortion.enabled },
         });
         break;
       case 'TOGGLE_REVERB':
@@ -428,6 +374,10 @@ function wireControls() {
     state.handGestureLabel = 'none';
     handGestureLatch.Left = null;
     handGestureLatch.Right = null;
+    handGestureStability.Left.token = null;
+    handGestureStability.Left.frames = 0;
+    handGestureStability.Right.token = null;
+    handGestureStability.Right.frames = 0;
     dom.handTrackingVideo.srcObject = null;
     const ctx = dom.handTrackingCanvas.getContext('2d');
     ctx.clearRect(0, 0, dom.handTrackingCanvas.width, dom.handTrackingCanvas.height);
@@ -501,9 +451,20 @@ function wireControls() {
               });
             }
 
-            const command = commandForGesture(handLabel, gestureToken);
-            if (handGestureLatch[handLabel] !== gestureToken) {
+            const stability = handGestureStability[handLabel];
+            if (stability.token === gestureToken) {
+              stability.frames += 1;
+            } else {
+              stability.token = gestureToken;
+              stability.frames = 1;
+            }
+
+            if (
+              stability.frames >= GESTURE_STABLE_FRAMES
+              && handGestureLatch[handLabel] !== gestureToken
+            ) {
               handGestureLatch[handLabel] = gestureToken;
+              const command = commandForGesture(handLabel, gestureToken);
               if (command) {
                 executeGestureCommand(command);
               }
@@ -512,6 +473,10 @@ function wireControls() {
         } else {
           handGestureLatch.Left = null;
           handGestureLatch.Right = null;
+          handGestureStability.Left.token = null;
+          handGestureStability.Left.frames = 0;
+          handGestureStability.Right.token = null;
+          handGestureStability.Right.frames = 0;
         }
         ctx.restore();
 

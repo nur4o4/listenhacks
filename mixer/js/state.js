@@ -60,19 +60,23 @@ export const state = {
   effects: {
     reverb: {
       enabled: false,
-      decay: 2.2,
-      wet: 0.45,
+      params: {
+        echo: {
+          delayMs: 320,
+          feedback: 0.62,
+          wet: 0.65,
+          dry: 0.82,
+        },
+        reverb: {
+          roomSize: 0.74,
+          damp: 0.35,
+          wet: 0.3,
+          earlyMix: 0.22,
+        },
+      },
     },
-    delay: {
+    distortion: {
       enabled: false,
-      delaySeconds: 0.22,
-      feedback: 0.35,
-      wet: 0.4,
-      advancedClamp: true,
-    },
-    autotune: {
-      enabled: false,
-      semitones: 0,
     },
   },
 
@@ -83,18 +87,13 @@ export const state = {
     levelAnalyser: null,
     inputGain: null,
     playbackGain: null,
-    dryBus: null,
     master: null,
     safetyCompressor: null,
-    reverbSend: null,
-    reverbNode: null,
-    reverbWet: null,
-    delaySend: null,
-    delayInput: null,
-    delayNode: null,
-    delayFeedback: null,
-    delayFeedbackFilter: null,
-    delayWet: null,
+    echoReverbNode: null,
+    echoReverbState: null,
+    distortionSend: null,
+    distortionNode: null,
+    distortionWet: null,
     meterFrame: null,
   },
 

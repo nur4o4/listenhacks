@@ -67,37 +67,10 @@
           <h2>Effects</h2>
           <div class="effects">
             <div class="control">
-              <label><input type="checkbox" id="reverbEnabled" /> <span>Reverb</span></label>
-              <span>Decay <span id="reverbDecayValue" class="value">2.2</span>s</span>
-              <input
-                id="reverbDecay"
-                type="range"
-                min="0.2"
-                max="6"
-                step="0.1"
-                value="2.2"
-              />
+              <label><input type="checkbox" id="reverbEnabled" /> <span>Reverb (Echo)</span></label>
             </div>
             <div class="control">
-              <label><input type="checkbox" id="delayEnabled" /> <span>Echo / Delay</span></label>
-              <span
-                >Delay <span id="delayTimeValue" class="value">0.22</span>s · Feedback
-                <span id="delayFeedbackValue" class="value">35</span>% · Wet
-                <span id="delayWetValue" class="value">40</span>%</span
-              >
-              <label><input type="checkbox" id="delayAdvanced" /> safe feedback clamp enabled</label>
-              <span>Delay Time</span>
-              <input id="delayTime" type="range" min="0.05" max="1.2" step="0.01" value="0.22" />
-              <span>Feedback</span>
-              <input id="delayFeedback" type="range" min="0" max="100" step="1" value="35" />
-              <span>Wet</span>
-              <input id="delayWet" type="range" min="0" max="100" step="1" value="40" />
-            </div>
-            <div class="control">
-              <label><input type="checkbox" id="autotuneEnabled" /> <span>autotune</span></label>
-              <span>Semitone Shift <span id="autotuneValue" class="value">0</span></span>
-              <input id="autotuneSemitones" type="range" min="-12" max="12" step="1" value="0" />
-              <small class="value">Fallback: quantized pitch-shift-style playback shift</small>
+              <label><input type="checkbox" id="distortionEnabled" /> <span>Distortion</span></label>
             </div>
           </div>
         </div>

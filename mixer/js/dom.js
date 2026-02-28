@@ -24,6 +24,7 @@ export const dom = {
   timelinePlayheadLayer: document.getElementById('timelinePlayheadLayer'),
 
   reverbEnabled: document.getElementById('reverbEnabled'),
+  distortionEnabled: document.getElementById('distortionEnabled'),
   reverbDecay: document.getElementById('reverbDecay'),
   reverbDecayValue: document.getElementById('reverbDecayValue'),
   delayEnabled: document.getElementById('delayEnabled'),
