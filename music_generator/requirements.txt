@@ -5,6 +5,10 @@ python-dotenv>=1.0.0
 # For REAL singing with music (Eleven Labs Music API)
 elevenlabs>=1.0.0
 
+# Flask API server for song generation endpoint
+flask>=3.0.0
+flask-cors>=4.0.0
+
 # Optional: For AI-assisted lyrics generation
 # Uncomment if you want to use the --ai feature in interactive_singing.py
 # openai>=1.0.0
