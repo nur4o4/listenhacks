@@ -31,8 +31,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const upload = multer({ dest: os.tmpdir() });
 
-const upload = multer({ dest: os.tmpdir() });
-
 const ACTION_ALLOWLIST = new Set([
   'ENABLE_MIC',
   'START_RECORD',
