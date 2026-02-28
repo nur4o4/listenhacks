@@ -2,6 +2,7 @@ venv/
 venv310/
 __pycache__/
 *.pyc
+.env
 
 # Package manager directories
 node_modules/
