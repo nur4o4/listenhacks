@@ -1,5 +1,5 @@
 import { clamp, modulo, nowMs, nowSessionSec } from './utils.js';
-import { getClipById, getTransportClip } from './state.js';
+import { getClipById } from './state.js';
 
 function buildReverbBuffer(appState, decay) {
   const ctx = appState.audio.context;
@@ -28,6 +28,7 @@ const STOP_FADE_SECONDS = 0.07;
 const OVERLAP_EPSILON = 0.0005;
 const LOOP_MIX_CHANNELS = 2;
 const SOFT_CLIP_GAIN = 1.15;
+const MIN_LOOP_REGION_SECONDS = 0.05;
 
 export function delayFeedbackMax(delayState) {
   return delayState?.advancedClamp ? 0.75 : 0.65;
@@ -172,40 +173,47 @@ function readSampleAtFrame(channelData, frameIndex) {
   return channelData[lower] * (1 - mix) + channelData[upper] * mix;
 }
 
-function buildLoopMixBuffer(appState) {
-  if (!appState.audio.context || appState.loopRegionStartSec == null || appState.loopRegionLengthSec <= 0) {
+function getReadyClipsWithTime(appState) {
+  return appState.clips.filter((clip) => (
+    clip.status === 'ready'
+    && !!clip.buffer
+    && Number.isFinite(clip.startTimeSec)
+    && Number.isFinite(clip.endTimeSec)
+    && clip.endTimeSec > clip.startTimeSec
+  ));
+}
+
+function buildMixedBufferForWindow(appState, windowStartSec, windowLengthSec, providedClips = null) {
+  if (!appState.audio.context || windowStartSec == null || windowLengthSec <= 0) {
     return null;
   }
 
   const ctx = appState.audio.context;
-  const loopStart = appState.loopRegionStartSec;
-  const loopLength = appState.loopRegionLengthSec;
-  const loopEnd = loopStart + loopLength;
-  const bufferFrames = Math.max(1, Math.round(loopLength * ctx.sampleRate));
-  const loopBuffer = ctx.createBuffer(LOOP_MIX_CHANNELS, bufferFrames, ctx.sampleRate);
+  const mixStart = windowStartSec;
+  const mixLength = windowLengthSec;
+  const mixEnd = mixStart + mixLength;
+  const bufferFrames = Math.max(1, Math.round(mixLength * ctx.sampleRate));
+  const mixBuffer = ctx.createBuffer(LOOP_MIX_CHANNELS, bufferFrames, ctx.sampleRate);
 
-  if (!loopLength) {
-    return loopBuffer;
+  if (!mixLength) {
+    return mixBuffer;
   }
 
   const accumulators = [
-    new Float32Array(loopBuffer.length),
-    new Float32Array(loopBuffer.length),
+    new Float32Array(mixBuffer.length),
+    new Float32Array(mixBuffer.length),
   ];
 
-  const overlappingClips = appState.clips.filter((clip) => {
-    if (clip.status !== 'ready' || !clip.buffer || clip.startTimeSec == null || clip.endTimeSec == null) {
-      return false;
-    }
-
-    return intervalsOverlap(loopStart, loopEnd, clip.startTimeSec, clip.endTimeSec);
-  });
+  const readyClips = providedClips || getReadyClipsWithTime(appState);
+  const overlappingClips = readyClips.filter((clip) => (
+    intervalsOverlap(mixStart, mixEnd, clip.startTimeSec, clip.endTimeSec)
+  ));
 
   for (const clip of overlappingClips) {
     const clipStart = clip.startTimeSec;
     const clipEnd = clip.endTimeSec;
-    const overlapStart = Math.max(loopStart, clipStart);
-    const overlapEnd = Math.min(loopEnd, clipEnd);
+    const overlapStart = Math.max(mixStart, clipStart);
+    const overlapEnd = Math.min(mixEnd, clipEnd);
     if (overlapEnd <= overlapStart) {
       continue;
     }
@@ -213,11 +221,11 @@ function buildLoopMixBuffer(appState) {
     const overlapLength = overlapEnd - overlapStart;
     const sourceBuffer = clip.buffer;
     const overlapSourceStartSec = overlapStart - clipStart;
-    const destStartSec = overlapStart - loopStart;
+    const destStartSec = overlapStart - mixStart;
     const destStartFrame = Math.max(0, Math.floor(destStartSec * ctx.sampleRate));
     const destFrames = Math.min(
       Math.floor(overlapLength * ctx.sampleRate),
-      loopBuffer.length - destStartFrame,
+      mixBuffer.length - destStartFrame,
     );
     if (destFrames <= 0 || sourceBuffer.length === 0) {
       continue;
@@ -245,25 +253,80 @@ function buildLoopMixBuffer(appState) {
     }
   }
 
-  loopBuffer.copyToChannel(accumulators[0], 0);
+  mixBuffer.copyToChannel(accumulators[0], 0);
   if (LOOP_MIX_CHANNELS > 1) {
-    loopBuffer.copyToChannel(accumulators[1], 1);
+    mixBuffer.copyToChannel(accumulators[1], 1);
   }
 
-  return loopBuffer;
+  return mixBuffer;
 }
 
-function selectedClipForLoop(appState) {
-  if (!appState.selectedClipId) {
-    return getTransportClip(appState);
+function buildLoopMixBuffer(appState) {
+  if (!appState.audio.context || appState.loopRegionStartSec == null || appState.loopRegionLengthSec <= 0) {
+    return null;
   }
 
-  const selected = getClipById(appState, appState.selectedClipId);
-  if (selected?.status === 'ready') {
-    return selected;
+  return buildMixedBufferForWindow(
+    appState,
+    appState.loopRegionStartSec,
+    appState.loopRegionLengthSec,
+  );
+}
+
+function buildSessionPlaybackBuffer(appState) {
+  if (!appState.audio.context) {
+    return null;
   }
 
-  return getTransportClip(appState);
+  const readyClips = getReadyClipsWithTime(appState);
+  if (!readyClips.length) {
+    return null;
+  }
+
+  const sessionStartSec = Math.min(...readyClips.map((clip) => clip.startTimeSec));
+  const sessionEndSec = Math.max(...readyClips.map((clip) => clip.endTimeSec));
+  const sessionLengthSec = sessionEndSec - sessionStartSec;
+
+  if (!Number.isFinite(sessionLengthSec) || sessionLengthSec <= 0) {
+    return null;
+  }
+
+  const buffer = buildMixedBufferForWindow(appState, sessionStartSec, sessionLengthSec, readyClips);
+  if (!buffer) {
+    return null;
+  }
+
+  return {
+    buffer,
+    sessionStartSec,
+    sessionLengthSec,
+  };
+}
+
+function getSessionRange(appState) {
+  const readyClips = getReadyClipsWithTime(appState);
+  if (!readyClips.length) {
+    return null;
+  }
+
+  const sessionStartSec = Math.min(...readyClips.map((clip) => clip.startTimeSec));
+  const sessionEndSec = Math.max(...readyClips.map((clip) => clip.endTimeSec));
+  if (!Number.isFinite(sessionStartSec) || !Number.isFinite(sessionEndSec) || sessionEndSec <= sessionStartSec) {
+    return null;
+  }
+
+  return { sessionStartSec, sessionEndSec };
+}
+
+function getLoopMarkerTimeSec(appState) {
+  if (appState.isPlaybackPlaying || appState.isPlaybackPaused) {
+    const baseStartSec = appState.playback.baseStartSec || 0;
+    return baseStartSec + currentPlaybackOffset(appState);
+  }
+  if (Number.isFinite(appState.playbackPlayheadSec)) {
+    return appState.playbackPlayheadSec;
+  }
+  return 0;
 }
 
 export async function ensureContext(appState) {
@@ -493,6 +556,8 @@ function startLoopTransport(appState, offsetSec = 0) {
     loopStart: 0,
     loopEnd: appState.loopRegionLengthSec,
     offset: loopOffset,
+    mode: 'loop',
+    preserveLoopingState: true,
   });
 }
 
@@ -655,13 +720,7 @@ export function updatePlayheadPosition(appState) {
     return;
   }
 
-  const clip = getClipById(appState, appState.playback.clipId);
-  if (!clip || !clip.duration) {
-    appState.playbackPlayheadSec = baseStart;
-    return;
-  }
-
-  appState.playbackPlayheadSec = baseStart + clamp(rawOffset, 0, clip.duration);
+  appState.playbackPlayheadSec = baseStart + clamp(rawOffset, 0, appState.playback.duration || 0);
 }
 
 function createTransport(appState, buffer, options = {}) {
@@ -676,6 +735,8 @@ function createTransport(appState, buffer, options = {}) {
     loopStart = 0,
     loopEnd = buffer.duration,
     baseStartSec = 0,
+    mode = 'clip',
+    preserveLoopingState = loop,
   } = options;
 
   const source = appState.audio.context.createBufferSource();
@@ -705,6 +766,7 @@ function createTransport(appState, buffer, options = {}) {
     manualStopReason: 'none',
     transportId,
     baseStartSec,
+    mode,
   };
   appState.activeTransportId = transportId;
   updateEffectsNodes(appState);
@@ -726,7 +788,7 @@ function createTransport(appState, buffer, options = {}) {
     if (reason === 'pause') {
       appState.isPlaybackPaused = true;
       appState.playbackPausedOffset = finalOffset;
-      appState.isLooping = loop;
+      appState.isLooping = preserveLoopingState;
     } else {
       appState.isPlaybackPaused = false;
       appState.playbackPausedOffset = 0;
@@ -739,6 +801,12 @@ function createTransport(appState, buffer, options = {}) {
         appState.playbackPlayheadSec = appState.playback.baseStartSec + modulo(finalOffset, loopLength);
       } else {
         appState.playbackPlayheadSec = appState.playback.baseStartSec;
+      }
+    } else if (appState.playback.mode === 'session') {
+      if (reason === 'pause') {
+        appState.playbackPlayheadSec = appState.playback.baseStartSec + clamp(finalOffset, 0, appState.playback.duration || 0);
+      } else {
+        appState.playbackPlayheadSec = appState.playback.baseStartSec + (appState.playback.duration || 0);
       }
     } else if (currentClip) {
       const clipDuration = currentClip.duration || 0;
@@ -757,7 +825,7 @@ function createTransport(appState, buffer, options = {}) {
   source.start(0, playbackStartOffset);
 
   appState.isPlaybackPlaying = true;
-  appState.isLooping = loop;
+  appState.isLooping = preserveLoopingState;
   appState.isPlaybackPaused = false;
   appState.playbackPausedOffset = 0;
   appState.playbackPlayheadSec = appState.playback.baseStartSec + playbackStartOffset;
@@ -790,25 +858,28 @@ export function stopTransport(appState, reason = 'manual') {
 }
 
 export function startPlayback(appState) {
-  const clip = getTransportClip(appState);
-  if (!clip) {
+  const sessionPlayback = buildSessionPlaybackBuffer(appState);
+  if (!sessionPlayback) {
     throw new Error('No ready clip yet.');
   }
 
-  appState.selectedClipId = clip.id;
+  const { buffer, sessionStartSec } = sessionPlayback;
   const offset = appState.isPlaybackPaused ? appState.playbackPausedOffset : 0;
   stopTransport(appState, 'replace');
 
-  if (!createTransport(appState, clip.buffer, {
-    clipId: clip.id,
+  if (!createTransport(appState, buffer, {
+    clipId: null,
     offset,
     loop: false,
-    baseStartSec: clip.startTimeSec || 0,
+    baseStartSec: sessionStartSec || 0,
+    mode: 'session',
+    preserveLoopingState: false,
   })) {
     throw new Error('Could not start playback.');
   }
 
-  return clip;
+  appState.isLooping = false;
+  return { label: 'timeline' };
 }
 
 export function pausePlayback(appState) {
@@ -839,66 +910,91 @@ export function resumePlayback(appState) {
     throw new Error('Could not resume looping playback.');
   }
 
-  const clip = getTransportClip(appState);
-  if (!clip) {
+  const sessionPlayback = buildSessionPlaybackBuffer(appState);
+  if (!sessionPlayback) {
     return false;
   }
 
-  if (!createTransport(appState, clip.buffer, {
-    clipId: clip.id,
+  const { buffer, sessionStartSec } = sessionPlayback;
+  if (!createTransport(appState, buffer, {
+    clipId: null,
     offset: resumeOffset,
     loop: false,
-    baseStartSec: clip.startTimeSec || 0,
+    baseStartSec: sessionStartSec || 0,
+    mode: 'session',
+    preserveLoopingState: false,
   })) {
     throw new Error('Could not resume playback.');
   }
 
-  return true;
+  appState.isLooping = false;
+  return { label: 'timeline playback' };
 }
 
 export function startLoop(appState) {
-  const clip = selectedClipForLoop(appState);
-  if (!clip) {
+  const sessionRange = getSessionRange(appState);
+  if (!sessionRange) {
     throw new Error('No ready clip yet.');
   }
-  if (clip.status !== 'ready') {
-    throw new Error('Select a ready clip first.');
+
+  const marker = clamp(
+    getLoopMarkerTimeSec(appState),
+    sessionRange.sessionStartSec,
+    Math.max(sessionRange.sessionStartSec, sessionRange.sessionEndSec - MIN_LOOP_REGION_SECONDS),
+  );
+  appState.loopSelectionStartSec = Number(marker.toFixed(3));
+  appState.pendingStatusMessage = `Loop start set at ${appState.loopSelectionStartSec.toFixed(2)}s. Click End Loop to set loop end.`;
+  return { startSec: appState.loopSelectionStartSec };
+}
+
+export function endLoop(appState) {
+  if (appState.isLooping && appState.loopSelectionStartSec == null) {
+    const preserveOffset = currentPlaybackOffset(appState);
+    stopTransport(appState, 'endLoop');
+    appState.playbackPausedOffset = preserveOffset;
+    appState.isLooping = false;
+    appState.loopRegionStartSec = null;
+    appState.loopRegionLengthSec = 0;
+    appState.loopSelectionStartSec = null;
+    appState.loopMixBuffer = null;
+    return { mode: 'stop' };
   }
 
-  const selectedStart = Number(clip.startTimeSec);
-  const selectedLength = Number(clip.duration);
-  if (!Number.isFinite(selectedStart) || !Number.isFinite(selectedLength) || selectedLength <= 0) {
-    throw new Error('Selected clip has no valid duration.');
+  if (appState.loopSelectionStartSec == null) {
+    return false;
   }
 
-  const currentPhase = appState.isPlaybackPlaying || appState.isPlaybackPaused
-    ? modulo(currentPlaybackOffset(appState), selectedLength)
-    : 0;
+  const sessionRange = getSessionRange(appState);
+  if (!sessionRange) {
+    throw new Error('No ready clip yet.');
+  }
+
+  const rawEndSec = clamp(
+    getLoopMarkerTimeSec(appState),
+    sessionRange.sessionStartSec,
+    sessionRange.sessionEndSec,
+  );
+  const loopStartSec = appState.loopSelectionStartSec;
+  if (rawEndSec - loopStartSec < MIN_LOOP_REGION_SECONDS) {
+    throw new Error('Loop end must be after loop start.');
+  }
+
+  const currentPhase = clamp(rawEndSec - loopStartSec, 0, rawEndSec - loopStartSec);
   stopTransport(appState, 'replace');
 
-  appState.loopRegionStartSec = selectedStart;
-  appState.loopRegionLengthSec = selectedLength;
+  appState.loopRegionStartSec = loopStartSec;
+  appState.loopRegionLengthSec = Number((rawEndSec - loopStartSec).toFixed(3));
+  appState.loopSelectionStartSec = null;
   appState.loopMixBuffer = buildLoopMixBuffer(appState);
 
   if (!startLoopTransport(appState, currentPhase)) {
     throw new Error('Could not start loop.');
   }
 
-  appState.selectedClipId = clip.id;
   appState.isPlaybackPaused = false;
-  return clip;
-}
-
-export function endLoop(appState) {
-  if (!appState.isLooping) {
-    return false;
-  }
-  const preserveOffset = currentPlaybackOffset(appState);
-  stopTransport(appState, 'endLoop');
-  appState.playbackPausedOffset = preserveOffset;
-  appState.isLooping = false;
-  appState.loopRegionStartSec = null;
-  appState.loopRegionLengthSec = 0;
-  appState.loopMixBuffer = null;
-  return true;
+  return {
+    mode: 'range',
+    startSec: appState.loopRegionStartSec,
+    endSec: Number((appState.loopRegionStartSec + appState.loopRegionLengthSec).toFixed(3)),
+  };
 }

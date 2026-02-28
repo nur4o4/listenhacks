@@ -1,6 +1,74 @@
 import { clamp, formatSeconds, nowSessionSec } from './utils.js';
 import { getTransportClip } from './state.js';
 
+function getWaveSurferLib() {
+  const globalLib = globalThis.WaveSurfer;
+  if (globalLib && typeof globalLib.create === 'function') {
+    return globalLib;
+  }
+  return null;
+}
+
+function getClipWaveformUrl(clip) {
+  if (!clip.blob || typeof URL === 'undefined') {
+    return null;
+  }
+
+  if (!clip.__waveformObjectUrl) {
+    clip.__waveformObjectUrl = URL.createObjectURL(clip.blob);
+  }
+
+  return clip.__waveformObjectUrl;
+}
+
+function renderClipWaveform(clip, visualRoot) {
+  const waveLib = getWaveSurferLib();
+  if (clip.__waveSurferInstance?.destroy) {
+    clip.__waveSurferInstance.destroy();
+    clip.__waveSurferInstance = null;
+  }
+
+  if (clip.status !== 'ready' || !waveLib || !clip.buffer) {
+    visualRoot.classList.add('clip-waveform-empty');
+    return;
+  }
+
+  const wavesurfer = waveLib.create({
+    container: visualRoot,
+    height: 36,
+    waveColor: '#9be3ff',
+    progressColor: '#5fd9ff',
+    cursorWidth: 0,
+    barWidth: 2,
+    barGap: 1,
+    normalize: true,
+    interact: false,
+    hideScrollbar: true,
+  });
+
+  clip.__waveSurferInstance = wavesurfer;
+
+  if (typeof wavesurfer.loadDecodedBuffer === 'function') {
+    wavesurfer.loadDecodedBuffer(clip.buffer);
+    return;
+  }
+
+  if (typeof wavesurfer.loadBuffer === 'function') {
+    wavesurfer.loadBuffer(clip.buffer);
+    return;
+  }
+
+  if (clip.blob && typeof wavesurfer.loadBlob === 'function') {
+    wavesurfer.loadBlob(clip.blob);
+    return;
+  }
+
+  const blobUrl = getClipWaveformUrl(clip);
+  if (blobUrl && typeof wavesurfer.load === 'function') {
+    wavesurfer.load(blobUrl);
+  }
+}
+
 function getClipVisualEndSec(appState, clip) {
   if (clip.status === 'ready') {
     return clip.endTimeSec ?? clip.startTimeSec;
@@ -75,8 +143,16 @@ export function createClipElement(appState, clip, scale, onClipSelect) {
     }
   }
 
-  clipEl.appendChild(label);
-  clipEl.appendChild(dur);
+  const visual = document.createElement('span');
+  visual.className = 'clip-waveform';
+  clipEl.prepend(visual);
+  renderClipWaveform(clip, visual);
+
+  const content = document.createElement('span');
+  content.className = 'clip-content';
+  content.appendChild(label);
+  content.appendChild(dur);
+  clipEl.appendChild(content);
 
   clipEl.addEventListener('click', () => {
     appState.selectedClipId = clip.id;

@@ -83,6 +83,8 @@ function render() {
 
   const loopLengthSeconds = state.isLooping
     ? state.loopRegionLengthSec
+    : state.playback.mode === 'session' && (state.isPlaybackPlaying || state.isPlaybackPaused)
+      ? state.playback.duration
     : activeClip
       ? activeClip.duration
       : 0;
@@ -102,7 +104,7 @@ function render() {
   const transportReady = !!getMostRecentReadyClip(state);
   dom.playbackBtn.disabled = (!transportReady && !state.isPlaybackPaused) || state.recordingActive;
   dom.startLoopBtn.disabled = !transportReady;
-  dom.endLoopBtn.disabled = !state.isLooping;
+  dom.endLoopBtn.disabled = !transportReady || (state.loopSelectionStartSec == null && !state.isLooping);
 
   dom.monitorToggle.checked = false;
   dom.monitorToggle.disabled = true;
@@ -123,6 +125,12 @@ function render() {
       ? 'Resume'
       : 'Playback';
   dom.playbackBtn.textContent = playbackLabel;
+  dom.startLoopBtn.textContent = 'Start Loop';
+  dom.endLoopBtn.textContent = state.loopSelectionStartSec != null
+    ? 'Set Loop End'
+    : state.isLooping
+      ? 'Stop Loop'
+      : 'End Loop';
 
   renderTimeline(state, dom, onClipSelect, onTrackSelect);
   renderEventLog(state);

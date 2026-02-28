@@ -18,6 +18,7 @@ export const state = {
   activeTransportId: null,
   loopRegionStartSec: null,
   loopRegionLengthSec: 0,
+  loopSelectionStartSec: null,
   loopMixBuffer: null,
   playback: {
     source: null,
@@ -29,6 +30,8 @@ export const state = {
     loop: false,
     manualStopReason: 'none',
     transportId: null,
+    baseStartSec: 0,
+    mode: 'clip',
   },
   playbackPlayheadSec: 0,
 

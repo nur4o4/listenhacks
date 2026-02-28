@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -10,8 +9,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const FRONTEND_SOURCE_DIR = path.join(__dirname, '..');
-const PUBLIC_DIR = path.join(__dirname, 'public');
-const FRONTEND_ASSETS = ['index.html', 'css', 'js'];
 const MAX_ACTIONS = 200;
 
 const ACTION_ALLOWLIST = new Set([
@@ -38,15 +35,6 @@ const recentActions = [];
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
-
-async function exists(filePath) {
-  try {
-    await fs.promises.access(filePath);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
 
 function sanitizeActionPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -78,29 +66,13 @@ function broadcastAction(action) {
   );
 }
 
-async function preparePublicDirectory() {
-  await fs.promises.mkdir(PUBLIC_DIR, { recursive: true });
-
-  for (const entry of FRONTEND_ASSETS) {
-    const source = path.join(FRONTEND_SOURCE_DIR, entry);
-    const target = path.join(PUBLIC_DIR, entry);
-
-    if (!(await exists(source))) {
-      continue;
-    }
-
-    await fs.promises.rm(target, { recursive: true, force: true });
-    await fs.promises.mkdir(path.dirname(target), { recursive: true });
-    await fs.promises.cp(source, target, { recursive: true });
-  }
-}
-
 function allowlistActionType(type) {
   return ACTION_ALLOWLIST.has(type);
 }
 
 app.use(express.json());
-app.use(express.static(PUBLIC_DIR));
+app.use('/css', express.static(path.join(FRONTEND_SOURCE_DIR, 'css')));
+app.use('/js', express.static(path.join(FRONTEND_SOURCE_DIR, 'js')));
 
 wss.on('connection', (socket) => {
   console.log('[ws] client connected');
@@ -161,7 +133,7 @@ const fallback = (req, res) => {
   if (req.method !== 'GET') {
     return;
   }
-  res.sendFile(path.join(PUBLIC_DIR, 'index.html'), (error) => {
+  res.sendFile(path.join(FRONTEND_SOURCE_DIR, 'index.html'), (error) => {
     if (error) {
       res.status(404).send('Frontend not found');
     }
@@ -180,14 +152,7 @@ app.use((req, res, next) => {
   return fallback(req, res);
 });
 
-preparePublicDirectory()
-  .then(() => {
-    server.listen(PORT, () => {
-      console.log(`[server] listening on http://localhost:${PORT}`);
-      console.log('[server] action allowlist:', Array.from(ACTION_ALLOWLIST).join(', '));
-    });
-  })
-  .catch((error) => {
-    console.error('Failed to prepare frontend public directory', error);
-    process.exit(1);
-  });
+server.listen(PORT, () => {
+  console.log(`[server] listening on http://localhost:${PORT}`);
+  console.log('[server] action allowlist:', Array.from(ACTION_ALLOWLIST).join(', '));
+});

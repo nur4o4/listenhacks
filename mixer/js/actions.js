@@ -171,18 +171,23 @@ export async function dispatchAction(appState, action = {}) {
         if (appState.recordingActive) {
           throw new Error('Cannot start loop while recording.');
         }
-        const clip = audio.startLoop(appState);
-        label = `Loop started on ${clip.label}`;
+        const marker = audio.startLoop(appState);
+        label = `Loop start set at ${marker.startSec.toFixed(2)}s`;
         break;
       }
 
-      case ACTION_TYPES.END_LOOP:
-        if (!appState.isLooping) {
-          throw new Error('No active loop.' );
+      case ACTION_TYPES.END_LOOP: {
+        const result = audio.endLoop(appState);
+        if (!result) {
+          throw new Error('Set loop start first.');
         }
-        audio.endLoop(appState);
-        label = 'Loop ended.';
+        if (result.mode === 'stop') {
+          label = 'Loop ended.';
+          break;
+        }
+        label = `Looping ${result.startSec.toFixed(2)}s to ${result.endSec.toFixed(2)}s`;
         break;
+      }
 
       case ACTION_TYPES.SET_REVERB_ENABLED: {
         appState.effects.reverb.enabled = !!payload.enabled;

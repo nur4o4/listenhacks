@@ -40,7 +40,7 @@ Each project is self-contained in its own directory. Navigate to the project fol
 
 ## 🎚️ Mixer Backend + Action Router
 
-The `mixer/server/` folder exposes a local action API on port `3000` and serves the mixer frontend from `mixer/server/public/`.
+The `mixer/server/` folder exposes a local action API on port `3000` and serves the mixer frontend directly from `mixer/`.
 The server only relays actions; it never records audio.
 
 ```bash
