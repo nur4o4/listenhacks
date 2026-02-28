@@ -1,5 +1,4 @@
 import { clamp, formatSeconds, nowSessionSec } from './utils.js';
-import { getTransportClip } from './state.js';
 
 function getWaveSurferLib() {
   const globalLib = globalThis.WaveSurfer;
@@ -245,10 +244,3 @@ export function renderTimeline(appState, dom, onClipSelect, onTrackSelect) {
   dom.timelinePlayhead.style.opacity = appState.isPlaybackPlaying ? '1' : '0.75';
 }
 
-export function getPlaybackTargetLabel(appState) {
-  const active = getTransportClip(appState);
-  if (active) {
-    return `${active.label} (${formatSeconds(active.duration || 0)}s)`;
-  }
-  return 'none';
-}

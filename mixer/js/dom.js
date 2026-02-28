@@ -33,15 +33,7 @@ export const dom = {
   autotuneSemitones: document.getElementById('autotuneSemitones'),
   autotuneValue: document.getElementById('autotuneValue'),
 
-  eventLog: document.getElementById('eventLog'),
-
-  activeTrackState: document.getElementById('activeTrackState'),
-  micState: document.getElementById('micState'),
-  selectedSnippet: document.getElementById('selectedSnippet'),
   remoteStatus: document.getElementById('remoteStatus'),
-  reverbState: document.getElementById('reverbState'),
-  delayState: document.getElementById('delayState'),
-  autotuneState: document.getElementById('autotuneState'),
   recordingState: document.getElementById('recordingState'),
   loopState: document.getElementById('loopState'),
   playbackState: document.getElementById('playbackState'),
@@ -51,8 +43,4 @@ export const dom = {
 export function setStatusMessage(text, isError = false) {
   dom.statusMessage.textContent = text || '';
   dom.statusMessage.style.color = isError ? '#ff8f9f' : '#ffd57a';
-}
-
-export function renderEventLog(appState) {
-  dom.eventLog.textContent = appState.actionLog.join('\n');
 }

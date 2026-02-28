@@ -92,7 +92,7 @@
         <h2>Timeline</h2>
         <div class="status">
           <span>
-            Four fixed tracks with clip blocks. Click a clip to select it.
+            Tracks are added as needed while you overdub in loops. Click a clip to select it.
           </span>
         </div>
         <div class="timeline-header">
@@ -115,23 +115,7 @@
         </div>
       </section>
 
-      <section class="panel">
-        <h2>State & Action Log</h2>
-        <div class="status">
-          <span>
-            mic active: <span id="micState" class="value">No</span> · selected clip:
-            <span id="selectedSnippet" class="value">none</span>
-          </span>
-          <span>Active track: <strong id="activeTrackState" class="value">Track 1</strong></span>
-          <span
-            >Effects: reverb <span id="reverbState" class="value">off</span>, delay
-            <span id="delayState" class="value">off</span>, autotune
-            <span id="autotuneState" class="value">off</span></span
-          >
-          <span>Remote: <strong id="remoteStatus" class="value remote-status remote-offline">disconnected</strong></span>
-        </div>
-        <pre id="eventLog" class="log"></pre>
-      </section>
+      <span id="remoteStatus" class="remote-status remote-offline" hidden>disconnected</span>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.min.js"></script>

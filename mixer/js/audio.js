@@ -126,8 +126,20 @@ function getTrackForTimeRange(appState, probeStart, probeEnd, excludeClipId = nu
   return newTrackId;
 }
 
+function createNewTrack(appState) {
+  const newTrackId = `track-${appState.tracks.length + 1}`;
+  appState.tracks.push({
+    id: newTrackId,
+    name: `Track ${appState.tracks.length + 1}`,
+  });
+  return newTrackId;
+}
+
 function assignClipToNonOverlappingTrack(appState, clip) {
   if (!clip || clip.status !== 'ready' || clip.startTimeSec == null || clip.endTimeSec == null) {
+    return;
+  }
+  if (clip.lockTrack) {
     return;
   }
 
@@ -143,7 +155,27 @@ function getTrackForRecordingStart(appState, startSec) {
   return getTrackForTimeRange(appState, startSec, startProbeEnd);
 }
 
+function loopRecordingStartSec(appState) {
+  if (!appState.isLooping || !appState.isPlaybackPlaying || appState.loopRegionStartSec == null || appState.loopRegionLengthSec <= 0) {
+    return null;
+  }
+
+  return appState.playback.baseStartSec + currentPlaybackOffset(appState);
+}
+
+function clearRecordingAutoStop(appState) {
+  if (appState.recordingAutoStopTimer) {
+    clearTimeout(appState.recordingAutoStopTimer);
+    appState.recordingAutoStopTimer = null;
+  }
+}
+
 function getRecordingStartSec(appState) {
+  const loopStart = loopRecordingStartSec(appState);
+  if (loopStart != null) {
+    return loopStart;
+  }
+
   const lastEnd = lastReadyClipEndTimeSec(appState);
   if (lastEnd == null) {
     return nowSessionSec(appState);
@@ -576,7 +608,10 @@ export function startRecording(appState) {
 
   const startSec = getRecordingStartSec(appState);
   const resolvedStart = Number(startSec.toFixed(3));
-  const selectedTrackId = getTrackForRecordingStart(appState, startSec);
+  const useDedicatedLoopTrack = loopRecordingStartSec(appState) != null;
+  const selectedTrackId = useDedicatedLoopTrack
+    ? createNewTrack(appState)
+    : getTrackForRecordingStart(appState, startSec);
   const clipNumber = appState.nextClipIndex;
   const clip = {
     id: `clip-${clipNumber}`,
@@ -588,6 +623,8 @@ export function startRecording(appState) {
     status: 'recording',
     blob: null,
     buffer: null,
+    lockTrack: useDedicatedLoopTrack,
+    maxDurationSec: useDedicatedLoopTrack ? appState.loopRegionLengthSec : null,
   };
 
   appState.nextClipIndex += 1;
@@ -598,6 +635,7 @@ export function startRecording(appState) {
   appState.recordingChunks = [];
   appState.recordingStart = nowMs();
   appState.recordingActive = true;
+  clearRecordingAutoStop(appState);
 
   if (!appState.mediaRecorder || appState.mediaRecorder.state !== 'inactive') {
     throw new Error('Recorder not ready for a new recording.');
@@ -605,7 +643,21 @@ export function startRecording(appState) {
 
   try {
     appState.mediaRecorder.start();
+    if (useDedicatedLoopTrack && clip.maxDurationSec > 0) {
+      const maxMs = Math.max(1, Math.round(clip.maxDurationSec * 1000));
+      appState.recordingAutoStopTimer = setTimeout(() => {
+        if (!appState.recordingActive || !appState.mediaRecorder || appState.mediaRecorder.state !== 'recording') {
+          return;
+        }
+        try {
+          appState.mediaRecorder.stop();
+        } catch (_) {
+          // Ignore invalid state errors.
+        }
+      }, maxMs);
+    }
   } catch (error) {
+    clearRecordingAutoStop(appState);
     appState.clips = appState.clips.filter((existing) => existing.id !== clip.id);
     appState.recordingActive = false;
     appState.recordingClipId = null;
@@ -618,6 +670,7 @@ export function startRecording(appState) {
 }
 
 export async function finalizeRecording(appState) {
+  clearRecordingAutoStop(appState);
   const recordingClip = getClipById(appState, appState.recordingClipId);
   const target = recordingClip || appState.clips[appState.clips.length - 1] || null;
 
@@ -639,7 +692,11 @@ export async function finalizeRecording(appState) {
   try {
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await appState.audio.context.decodeAudioData(arrayBuffer.slice(0));
-    const duration = Number(Math.max(elapsedMs / 1000, audioBuffer.duration || 0).toFixed(2));
+    const rawDuration = Math.max(elapsedMs / 1000, audioBuffer.duration || 0);
+    const durationCap = Number.isFinite(target.maxDurationSec) && target.maxDurationSec > 0
+      ? target.maxDurationSec
+      : Infinity;
+    const duration = Number(Math.min(rawDuration, durationCap).toFixed(2));
     const clipStart = target.startTimeSec;
 
     target.blob = blob;
@@ -677,6 +734,7 @@ export function endRecording(appState) {
   if (!appState.recordingActive || !appState.mediaRecorder) {
     return false;
   }
+  clearRecordingAutoStop(appState);
   appState.mediaRecorder.stop();
   return true;
 }

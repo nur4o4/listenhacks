@@ -6,6 +6,7 @@ export const state = {
   recordingActive: false,
   recordingClipId: null,
   recordingStart: 0,
+  recordingAutoStopTimer: null,
   recordingChunks: [],
   mediaRecorder: null,
   mediaStream: null,
@@ -42,9 +43,6 @@ export const state = {
 
   tracks: [
     { id: 'track-1', name: 'Track 1' },
-    { id: 'track-2', name: 'Track 2' },
-    { id: 'track-3', name: 'Track 3' },
-    { id: 'track-4', name: 'Track 4' },
   ],
   activeTrackId: 'track-1',
 
@@ -56,7 +54,6 @@ export const state = {
     pixelsPerSecond: 80,
   },
 
-  actionLog: [],
   effects: {
     reverb: {
       enabled: false,

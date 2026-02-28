@@ -1,7 +1,7 @@
 import { getMostRecentReadyClip, getTransportClip, state } from './state.js';
 import { clamp, formatSeconds } from './utils.js';
-import { dom, renderEventLog, setStatusMessage } from './dom.js';
-import { getPlaybackTargetLabel, renderTimeline } from './timeline.js';
+import { dom, setStatusMessage } from './dom.js';
+import { renderTimeline } from './timeline.js';
 import { logAction } from './logging.js';
 import * as audio from './audio.js';
 import { ACTION_TYPES, dispatchAction } from './actions.js';
@@ -64,15 +64,6 @@ function render() {
 
   const activeClip = getTransportClip(state);
 
-  dom.micState.textContent = state.micEnabled ? 'Yes' : 'No';
-  dom.activeTrackState.textContent =
-    state.tracks.find((track) => track.id === state.activeTrackId)?.name || state.activeTrackId;
-
-  dom.selectedSnippet.textContent = getPlaybackTargetLabel(state);
-  dom.reverbState.textContent = state.effects.reverb.enabled ? 'on' : 'off';
-  dom.delayState.textContent = state.effects.delay.enabled ? 'on' : 'off';
-  dom.autotuneState.textContent = state.effects.autotune.enabled ? 'on' : 'off';
-
   dom.recordingState.textContent = state.recordingActive ? 'Yes' : 'No';
   dom.loopState.textContent = state.isLooping ? 'Yes' : 'No';
   dom.playbackState.textContent = state.isPlaybackPlaying
@@ -133,7 +124,6 @@ function render() {
       : 'End Loop';
 
   renderTimeline(state, dom, onClipSelect, onTrackSelect);
-  renderEventLog(state);
 }
 
 function runAction(action) {

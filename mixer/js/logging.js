@@ -49,10 +49,5 @@ export function logAction(appState, action) {
 
   console.log(`[${new Date().toISOString()}] ${message}`, snap);
 
-  appState.actionLog.unshift(`[${new Date().toLocaleTimeString()}] ${message}`);
-  if (appState.actionLog.length > 20) {
-    appState.actionLog.pop();
-  }
-
   return message;
 }
